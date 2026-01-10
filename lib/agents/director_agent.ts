@@ -20,6 +20,7 @@ import { globalState } from '../global_state';
 import { radioMonitor } from '../radio_monitor';
 import { getSettings } from '../settings_store';
 import { saveSession } from '../session_store';
+import { mailQueue } from '../mail_queue';
 
 // ================== Types ==================
 
@@ -41,6 +42,7 @@ export class DirectorAgent {
     private isRunning = false;
     private preparedAudio: Map<string, ArrayBuffer> = new Map();
     private musicCache: Map<string, IGDMusicTrack> = new Map();
+    private musicUrlCache: Map<string, string> = new Map(); // 预加载的音乐 URL
 
     // 双缓冲：下一段时间线预生成
     private nextTimeline: ShowTimeline | null = null;
@@ -94,49 +96,82 @@ export class DirectorAgent {
         console.log('[Director] Entering show loop...');
         radioMonitor.updateStatus('DIRECTOR', 'READY', 'Ready to start loop');
 
-        // 首次启动时播放预热内容
+        // 下一个时间线的预生成缓冲区
+        let nextTimeline: ShowTimeline | null = null;
+        let nextTimelineReady = false;
         let isFirstRun = true;
 
         while (this.isRunning) {
             try {
-                // 并行执行：预热播放 + 生成主节目
+                let currentTimeline: ShowTimeline;
+
                 if (isFirstRun) {
                     isFirstRun = false;
 
-                    // 同时启动预热播放和主节目生成
+                    // 首次：同时启动预热播放和主节目生成
                     const warmupPromise = this.playWarmupContent();
                     const timelinePromise = this.generateMainTimeline(theme, userRequest);
 
-                    // 等待主节目生成完成
-                    const timeline = await timelinePromise;
+                    currentTimeline = await timelinePromise;
 
                     // 停止预热，切换到主节目
                     audioMixer.stopAll();
                     await this.delay(300);
+                } else if (nextTimeline && nextTimelineReady) {
+                    // 使用预先生成好的下一期节目
+                    radioMonitor.log('DIRECTOR', 'Using pre-generated timeline', 'info');
+                    currentTimeline = nextTimeline;
+                    nextTimeline = null;
+                    nextTimelineReady = false;
 
-                    // 设置时间线
-                    await this.setupTimeline(timeline);
+                    // 平滑过渡
+                    await audioMixer.fadeMusic(0, 1000);
+                    audioMixer.stopMusic();
+                    await this.delay(300);
                 } else {
-                    // 后续循环：直接生成下一段节目
-                    const timeline = await this.generateMainTimeline(undefined, undefined);
-                    await this.setupTimeline(timeline);
+                    // 备选：如果预生成没准备好，等待生成
+                    radioMonitor.log('DIRECTOR', 'Waiting for timeline generation...', 'warn');
+                    await audioMixer.fadeMusic(0, 1000);
+                    audioMixer.stopMusic();
+
+                    const pendingMail = mailQueue.getNext();
+                    currentTimeline = await this.generateMainTimeline(undefined, pendingMail?.content);
                 }
 
-                // 预处理
+                // 设置并预处理当前时间线
+                await this.setupTimeline(currentTimeline);
                 radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
                 const preloadCount = getSettings().preloadBlockCount;
                 await this.prepareBlocks(0, preloadCount);
 
-                // 执行当前时间线
-                radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Executing show...');
-                radioMonitor.log('DIRECTOR', `Beginning execution of timeline: ${this.context?.timeline.id}`, 'info', { blockCount: this.context?.timeline.blocks.length });
-                await this.executeTimeline();
+                // 🔥 关键：开始播放当前节目的同时，并行生成下一期节目
+                const executePromise = this.executeTimeline();
 
-                // 播完一段后的清理
-                this.preparedAudio.clear();
+                // 在当前节目播放时，并行生成和准备下一期
+                const prepareNextPromise = (async () => {
+                    // 等待当前节目播放到一半时开始准备下一期
+                    const halfwayDelay = Math.max(5000, (currentTimeline.blocks.length * 3000) / 2);
+                    await this.delay(halfwayDelay);
 
-                // 如果有听众来信，第一轮播完后清除
-                userRequest = undefined;
+                    if (!this.isRunning) return;
+
+                    radioMonitor.log('DIRECTOR', 'Pre-generating next timeline...', 'info');
+                    const pendingMail = mailQueue.getNext();
+                    nextTimeline = await this.generateMainTimeline(undefined, pendingMail?.content);
+
+                    if (!this.isRunning || !nextTimeline) return;
+
+                    // 预处理下一期的前半部分音频
+                    await this.setupTimeline(nextTimeline, false); // false = 不广播
+                    const halfBlocks = Math.ceil(nextTimeline.blocks.length / 2);
+                    await this.prepareBlocksForTimeline(nextTimeline, 0, halfBlocks);
+
+                    nextTimelineReady = true;
+                    radioMonitor.log('DIRECTOR', 'Next timeline ready', 'info');
+                })();
+
+                // 等待当前节目播完
+                await executePromise;
 
             } catch (error) {
                 console.error('[Director] Loop error:', error);
@@ -148,6 +183,25 @@ export class DirectorAgent {
 
         radioMonitor.updateStatus('DIRECTOR', 'IDLE', 'Show ended');
         console.log('[Director] Show loop ended.');
+    }
+
+    /**
+     * 为指定时间线预处理块（不影响当前 context）
+     */
+    private async prepareBlocksForTimeline(timeline: ShowTimeline, startIndex: number, count: number): Promise<void> {
+        const endIndex = Math.min(startIndex + count, timeline.blocks.length);
+        const preparePromises: Promise<void>[] = [];
+
+        for (let i = startIndex; i < endIndex; i++) {
+            const block = timeline.blocks[i];
+            if (block.type === 'talk') {
+                preparePromises.push(this.prepareTalkBlock(block));
+            } else if (block.type === 'music') {
+                preparePromises.push(this.prepareMusicBlock(block));
+            }
+        }
+
+        await Promise.all(preparePromises);
     }
 
     /**
@@ -217,10 +271,14 @@ export class DirectorAgent {
 
     /**
      * 设置时间线到上下文
+     * @param broadcast 是否广播时间线更新（预生成时为 false）
      */
-    private async setupTimeline(timeline: ShowTimeline): Promise<void> {
+    private async setupTimeline(timeline: ShowTimeline, broadcast: boolean = true): Promise<void> {
         console.log('[Director] New timeline generated:', timeline.id, 'with', timeline.blocks.length, 'blocks');
-        radioMonitor.emitTimeline(timeline);
+
+        if (broadcast) {
+            radioMonitor.emitTimeline(timeline);
+        }
 
         // 同步演员阵容到 TTS Agent
         const cast = writerAgent.getCurrentCast();
@@ -228,17 +286,19 @@ export class DirectorAgent {
             ttsAgent.setActiveCast(cast);
         }
 
-        // 更新上下文
-        if (this.context) {
-            this.context.timeline = timeline;
-            this.context.currentBlockIndex = 0;
-            this.context.onTimelineReady?.(timeline);
-        } else {
-            this.context = {
-                timeline,
-                currentBlockIndex: 0,
-                isPaused: false,
-            };
+        // 更新上下文（仅在广播模式，即当前播放时）
+        if (broadcast) {
+            if (this.context) {
+                this.context.timeline = timeline;
+                this.context.currentBlockIndex = 0;
+                this.context.onTimelineReady?.(timeline);
+            } else {
+                this.context = {
+                    timeline,
+                    currentBlockIndex: 0,
+                    isPaused: false,
+                };
+            }
         }
     }
 
@@ -311,10 +371,11 @@ export class DirectorAgent {
         const nextIndex = this.context.currentBlockIndex + 1;
 
         if (nextIndex < timeline.blocks.length) {
-            // 停止当前音频
+            // 设置跳转请求标志
+            this.skipRequested = true;
+            this.targetBlockIndex = nextIndex;
+            // 立即停止当前音频
             audioMixer.stopAll();
-            // 设置索引（executeTimeline 会在下一循环执行新块）
-            this.context.currentBlockIndex = nextIndex - 1; // -1 因为循环末尾会 +1
             console.log('[Director] Skip to next:', nextIndex);
         }
     }
@@ -328,10 +389,11 @@ export class DirectorAgent {
         const prevIndex = this.context.currentBlockIndex - 1;
 
         if (prevIndex >= 0) {
-            // 停止当前音频
+            // 设置跳转请求标志
+            this.skipRequested = true;
+            this.targetBlockIndex = prevIndex;
+            // 立即停止当前音频
             audioMixer.stopAll();
-            // 设置索引
-            this.context.currentBlockIndex = prevIndex - 1; // -1 因为循环末尾会 +1
             console.log('[Director] Skip to previous:', prevIndex);
         }
     }
@@ -392,13 +454,13 @@ export class DirectorAgent {
     }
 
     /**
-     * 预处理说话块
+     * 预处理说话块（并发生成所有台词）
      */
     private async prepareTalkBlock(block: TalkBlock): Promise<void> {
-        for (const script of block.scripts) {
+        const ttsPromises = block.scripts.map(async (script) => {
             const audioId = `${block.id}-${script.speaker}-${script.text.slice(0, 20)}`;
 
-            if (this.preparedAudio.has(audioId)) continue;
+            if (this.preparedAudio.has(audioId)) return;
 
             try {
                 const result = await ttsAgent.generateSpeech(
@@ -417,14 +479,18 @@ export class DirectorAgent {
             } catch (error) {
                 console.error('TTS preparation failed:', error);
             }
-        }
+        });
+
+        await Promise.all(ttsPromises);
     }
 
     /**
-     * 预处理音乐块 (获取音乐和歌词)
+     * 预处理音乐块 (获取音乐URL和歌词)
      */
     private async prepareMusicBlock(block: MusicBlock): Promise<void> {
-        if (this.musicCache.has(block.search)) return;
+        if (this.musicCache.has(block.search) && this.musicUrlCache.has(block.search)) {
+            return; // 已经完全缓存
+        }
 
         try {
             const tracks = await searchMusic(block.search);
@@ -432,21 +498,31 @@ export class DirectorAgent {
                 const track = tracks[0];
                 this.musicCache.set(block.search, track);
 
-                // 获取歌词并存入全局上下文 (供 Writer Agent 使用)
-                const lyrics = await getLyrics(track.lyricId, track.source);
+                // 并行获取 URL 和歌词
+                const [url, lyrics] = await Promise.all([
+                    getMusicUrl(track.id, 320, track.source),
+                    getLyrics(track.lyricId, track.source)
+                ]);
+
+                // 缓存 URL
+                if (url) {
+                    this.musicUrlCache.set(block.search, url);
+                    console.log('[Director] Preloaded music URL for:', track.name);
+                }
+
+                // 存储歌词到全局上下文
                 if (lyrics?.lyric) {
-                    // 提取纯文本歌词 (去掉时间标记)
                     const cleanLyrics = this.parseLrcToText(lyrics.lyric);
                     globalState.addRecentlyPlayedSong({
                         name: track.name,
                         artist: track.artist.join(', '),
-                        lyrics: cleanLyrics.slice(0, 500)  // 限制长度
+                        lyrics: cleanLyrics.slice(0, 500)
                     });
                     console.log('[Director] Fetched lyrics for:', track.name);
                 }
             }
         } catch (error) {
-            console.error('Music search failed:', error);
+            console.error('Music preload failed:', error);
         }
     }
 
@@ -558,30 +634,6 @@ export class DirectorAgent {
     }
 
     /**
-     * 为指定时间线预处理块
-     */
-    private async prepareBlocksForTimeline(
-        timeline: ShowTimeline,
-        startIndex: number,
-        count: number
-    ): Promise<void> {
-        const endIndex = Math.min(startIndex + count, timeline.blocks.length);
-        const preparePromises: Promise<void>[] = [];
-
-        for (let i = startIndex; i < endIndex; i++) {
-            const block = timeline.blocks[i];
-            radioMonitor.log('DIRECTOR', `Preparing block ${i + 1}/${timeline.blocks.length}: ${block.type}`, 'trace');
-            if (block.type === 'talk') {
-                preparePromises.push(this.prepareTalkBlock(block));
-            } else if (block.type === 'music') {
-                preparePromises.push(this.prepareMusicBlock(block));
-            }
-        }
-
-        await Promise.all(preparePromises);
-    }
-
-    /**
      * 执行单个块
      */
     private async executeBlock(block: TimelineBlock): Promise<void> {
@@ -684,31 +736,31 @@ export class DirectorAgent {
             }
         }
 
-        // 获取音乐
+        // 优先使用预加载的 URL
+        let url = this.musicUrlCache.get(block.search);
         let track = this.musicCache.get(block.search);
-        if (!track) {
+
+        // 如果没有缓存，实时获取
+        if (!track || !url) {
             const tracks = await searchMusic(block.search);
             if (tracks.length > 0) {
                 track = tracks[0];
+                url = await getMusicUrl(track.id) || undefined;
             }
         }
+        if (url && track) {
+            await audioMixer.playMusic(url, {
+                fadeIn: block.fadeIn
+            });
 
-        if (track) {
-            const url = await getMusicUrl(track.id);
-            if (url) {
-                await audioMixer.playMusic(url, {
-                    fadeIn: block.fadeIn
-                });
+            // 记录到 globalState
+            globalState.addTrack(block.search);
 
-                // 记录到 globalState
-                globalState.addTrack(block.search);
-
-                // 如果指定了时长，等待后淡出
-                if (block.duration) {
-                    await this.delay(block.duration * 1000);
-                    await audioMixer.fadeMusic(0, 2000);
-                    audioMixer.stopMusic();
-                }
+            // 如果指定了时长，等待后淡出
+            if (block.duration) {
+                await this.delay(block.duration * 1000);
+                await audioMixer.fadeMusic(0, 2000);
+                audioMixer.stopMusic();
             }
         }
     }

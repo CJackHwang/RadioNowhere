@@ -4,12 +4,16 @@ import { useState } from "react";
 import { Settings } from "lucide-react";
 import RadioPlayer from "@/components/RadioPlayer";
 import SettingsPanel from "@/components/SettingsPanel";
+import ApiCallBubbles from "@/components/ApiCallBubbles";
 
 export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-black p-4 relative overflow-hidden">
+
+      {/* API Call Bubbles */}
+      <ApiCallBubbles />
 
       {/* Settings Button */}
       <button

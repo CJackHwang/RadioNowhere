@@ -350,7 +350,7 @@ ${castDescription}
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 generationConfig: {
                     temperature: 0.8,
-                    maxOutputTokens: 4096
+                    maxOutputTokens: 8192
                 }
             };
         } else if (settings.apiType === 'gemini') {
@@ -362,7 +362,7 @@ ${castDescription}
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: {
                     temperature: 0.8,
-                    maxOutputTokens: 4096
+                    maxOutputTokens: 8192
                 }
             };
         } else {
@@ -378,7 +378,7 @@ ${castDescription}
                 model: settings.modelName,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.8,
-                max_tokens: 4096
+                max_tokens: 8192
             };
         }
 
@@ -416,21 +416,22 @@ ${castDescription}
         // 提取 JSON 内容
         let jsonStr = response;
 
-        // 策略1: 移除 markdown 代码块
-        const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (jsonMatch) {
+        // 策略1: 移除 markdown 代码块（支持完整和截断的情况）
+        const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
+        if (jsonMatch && jsonMatch[1].includes('{')) {
             jsonStr = jsonMatch[1];
             console.log('[Writer] Extracted JSON from markdown code block');
+        }
+
+        // 策略2: 查找第一个 { 和最后一个 }（通用回退）
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+            console.log('[Writer] Extracted JSON by finding braces');
         } else {
-            // 策略2: 查找第一个 { 和最后一个 }
-            const firstBrace = response.indexOf('{');
-            const lastBrace = response.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-                jsonStr = response.substring(firstBrace, lastBrace + 1);
-                console.log('[Writer] Extracted JSON by finding braces');
-            } else {
-                console.error('[Writer] No JSON structure found in response:', response.substring(0, 200));
-            }
+            console.error('[Writer] No JSON structure found in response:', response.substring(0, 200));
+            throw new Error('No valid JSON structure found in AI response');
         }
 
         // 尝试解析

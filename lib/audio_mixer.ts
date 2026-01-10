@@ -195,34 +195,54 @@ export class AudioMixer {
         };
     }
 
-    // ================== 语音控制 ==================
+    private voiceResolve: (() => void) | null = null; // 用于中断时立即 resolve
 
     /**
      * 播放语音（从 ArrayBuffer）
      * Gemini TTS 返回 PCM 格式，需要转换为 WAV
      */
     async playVoice(audioData: ArrayBuffer): Promise<void> {
+        // 先确保上一个语音完全停止
+        if (this.voiceHowl) {
+            this.voiceHowl.stop(); // 触发 onstop 回调，resolve 上一个 Promise
+            this.voiceHowl.unload();
+            this.voiceHowl = null;
+        }
+
+        // 语音间隔小停顿（200ms）让过渡更自然
+        await new Promise(r => setTimeout(r, 200));
+
         return new Promise((resolve, reject) => {
             // 将 PCM 转换为 WAV 格式
             const wavData = pcmToWav(audioData);
             const blob = new Blob([wavData], { type: 'audio/wav' });
             const url = URL.createObjectURL(blob);
 
-            // 停止当前语音
-            if (this.voiceHowl) {
-                this.voiceHowl.unload();
-            }
+            // 保存 resolve 以便 stopVoice 可以调用
+            this.voiceResolve = () => {
+                URL.revokeObjectURL(url);
+                resolve();
+            };
 
             this.voiceHowl = new Howl({
                 src: [url],
                 format: ['wav'],
                 volume: this.voiceVolume,
                 onend: () => {
-                    URL.revokeObjectURL(url);
-                    resolve();
+                    // 音频播完后增加 300ms 缓冲，防止末尾吞字
+                    setTimeout(() => {
+                        this.voiceResolve?.();
+                        this.voiceResolve = null;
+                    }, 300);
+                },
+                onstop: () => {
+                    // 被 stop() 调用时也 resolve
+                    this.voiceResolve?.();
+                    this.voiceResolve = null;
                 },
                 onloaderror: (_, error) => {
                     URL.revokeObjectURL(url);
+                    this.voiceResolve = null;
                     console.error('Voice load error:', error);
                     reject(error);
                 }
@@ -236,9 +256,11 @@ export class AudioMixer {
      * 停止语音
      */
     stopVoice(): void {
-        this.voiceHowl?.stop();
-        this.voiceHowl?.unload();
-        this.voiceHowl = null;
+        if (this.voiceHowl) {
+            this.voiceHowl.stop(); // 这会触发 onstop 回调
+            this.voiceHowl.unload();
+            this.voiceHowl = null;
+        }
     }
 
     /**

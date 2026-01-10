@@ -13,6 +13,7 @@ import { audioMixer } from '@/lib/audio_mixer';
 import { radioMonitor, AgentStatus, ScriptEvent, LogEvent } from '@/lib/radio_monitor';
 import { TimelineBlock, TalkBlock, MusicBlock, ShowTimeline, PlayerState } from '@/lib/types/radio_types';
 import { hasSession, getSession, clearSession } from '@/lib/session_store';
+import { mailQueue } from '@/lib/mail_queue';
 
 // ================== Components ==================
 
@@ -195,8 +196,8 @@ export default function RadioPlayer() {
     const [showMailbox, setShowMailbox] = useState(false);
     const [showTerminal, setShowTerminal] = useState(false);
     const [userMessage, setUserMessage] = useState("");
-    const [pendingRequests, setPendingRequests] = useState<string[]>([]);
     const [showTimeline, setShowTimeline] = useState(true);
+    const [pendingMailCount, setPendingMailCount] = useState(0);
 
     // 新状态: isConnected = Agent生成中, isPlaying = 播放中
     const [isConnected, setIsConnected] = useState(false);
@@ -234,6 +235,14 @@ export default function RadioPlayer() {
         };
     }, []);
 
+    // 监听邮件队列变化
+    useEffect(() => {
+        const cleanup = mailQueue.onMail(() => {
+            setPendingMailCount(mailQueue.getStatus().pending);
+        });
+        return cleanup;
+    }, []);
+
     // 自动滚动节目单
     useEffect(() => {
         if (timelineScrollRef.current && currentBlockId) {
@@ -262,9 +271,7 @@ export default function RadioPlayer() {
         setCurrentScript(null);
 
         try {
-            await directorAgent.startShow({
-                userRequest: pendingRequests.length > 0 ? pendingRequests[0] : undefined,
-            });
+            await directorAgent.startShow({});
             setIsInitializing(false);
         } catch (error) {
             console.error("Failed to connect:", error);
@@ -272,11 +279,7 @@ export default function RadioPlayer() {
             setIsPlaying(false);
             setIsInitializing(false);
         }
-
-        if (pendingRequests.length > 0) {
-            setPendingRequests(prev => prev.slice(1));
-        }
-    }, [pendingRequests]);
+    }, []);
 
     // Disconnect: 停止所有 Agent 生成和播放
     const disconnect = useCallback(() => {
@@ -324,7 +327,8 @@ export default function RadioPlayer() {
 
     const submitUserRequest = () => {
         if (!userMessage.trim()) return;
-        setPendingRequests(prev => [...prev, userMessage]);
+        mailQueue.push(userMessage);
+        setPendingMailCount(mailQueue.getStatus().pending);
         setUserMessage("");
         setShowMailbox(false);
     };
@@ -464,7 +468,14 @@ export default function RadioPlayer() {
                         <PlayerActionBtn onClick={skipForward} icon={<SkipForward size={20} />} label="Next" disabled={!isConnected} />
                         <PlayerActionBtn onClick={() => setShowTerminal(!showTerminal)} active={showTerminal} icon={<Activity size={20} />} label="System" />
                         <PlayerActionBtn onClick={() => setShowTimeline(!showTimeline)} active={showTimeline} icon={<Layers size={20} />} label="List" />
-                        <PlayerActionBtn onClick={() => setShowMailbox(true)} icon={<MessageCircle size={20} />} label="Mail" />
+                        <div className="relative">
+                            <PlayerActionBtn onClick={() => setShowMailbox(true)} icon={<MessageCircle size={20} />} label="Mail" />
+                            {pendingMailCount > 0 && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 text-black text-[10px] font-bold rounded-full flex items-center justify-center">
+                                    {pendingMailCount}
+                                </span>
+                            )}
+                        </div>
                         <PlayerActionBtn onClick={() => {
                             setIsMuted(!isMuted);
                             audioMixer.setMasterVolume(!isMuted ? 0 : 0.8);

@@ -18,7 +18,6 @@ import { radioMonitor } from '../radio_monitor';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
-const RATE_LIMIT_DELAY_MS = 22000; // 免费版限制 3次/分钟，每次间隔 22 秒
 
 // ================== Style Prompt Builder ==================
 
@@ -70,7 +69,6 @@ import { Cast, CastMember } from '../cast_system';
 export class TTSAgent {
     private queue: TTSRequest[] = [];
     private cache: Map<string, ArrayBuffer> = new Map();
-    private lastCallTime = 0; // 限流控制
     private activeCast: Cast | null = null; // 当前演员阵容
 
     /**
@@ -183,23 +181,12 @@ export class TTSAgent {
     }
 
     /**
-     * 处理单个请求
+     * 处理单个请求（无速率限制，支持并发）
      */
     private async processRequest(request: TTSRequest): Promise<TTSResult> {
         const retryCount = request.retryCount || 0;
 
         try {
-            // 限流控制：确保请求间隔
-            const now = Date.now();
-            const timeSinceLastCall = now - this.lastCallTime;
-            if (timeSinceLastCall < RATE_LIMIT_DELAY_MS) {
-                const waitTime = RATE_LIMIT_DELAY_MS - timeSinceLastCall;
-                radioMonitor.log('TTS', `Rate limiting: waiting ${Math.round(waitTime / 1000)}s`, 'trace');
-                console.log(`[TTS] Rate limiting, waiting ${waitTime}ms...`);
-                await this.delay(waitTime);
-            }
-
-            this.lastCallTime = Date.now();
             radioMonitor.updateStatus('TTS', 'BUSY', `Generating: ${request.text.slice(0, 15)}...`);
             const audioData = await this.callTTSApi(request);
 

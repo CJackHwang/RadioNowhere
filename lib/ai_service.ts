@@ -1,9 +1,6 @@
-/**
- * AI Service - Multi-format API client (OpenAI & Gemini compatible)
- */
-
 import { getSettings, isConfigured, ApiType } from "./settings_store";
 import { WORLD_BIBLE, IShowSegment } from "./fictional_world";
+import { radioMonitor } from "./radio_monitor";
 
 // ================== Interfaces ==================
 
@@ -65,6 +62,34 @@ export function buildVertexUrl(project: string, location: string, model: string,
 }
 
 /**
+ * 解析 URL 获取服务类型
+ */
+function getServiceFromUrl(url: string): 'AI' | 'TTS' | 'Music' | 'Lyrics' | 'Proxy' {
+    const lowerUrl = url.toLowerCase();
+    if (lowerUrl.includes('generatecontent')) {
+        if (lowerUrl.includes('tts') || lowerUrl.includes('speech')) return 'TTS';
+        return 'AI';
+    }
+    if (lowerUrl.includes('music-api') || lowerUrl.includes('gdstudio')) {
+        if (lowerUrl.includes('lyric')) return 'Lyrics';
+        return 'Music';
+    }
+    return 'Proxy';
+}
+
+/**
+ * 从 URL 提取简短动作描述
+ */
+function getActionFromUrl(url: string): string {
+    if (url.includes('generateContent')) return 'Generate Content';
+    if (url.includes('search')) return 'Search Music';
+    if (url.includes('types=url')) return 'Get Music URL';
+    if (url.includes('types=lyric')) return 'Fetch Lyrics';
+    if (url.includes('models')) return 'Fetch Models';
+    return 'API Request';
+}
+
+/**
  * 发送 API 请求（直接调用，如失败则尝试代理）
  */
 export async function apiFetch(
@@ -80,9 +105,14 @@ export async function apiFetch(
         fetchOptions.body = JSON.stringify(options.body);
     }
 
+    const service = getServiceFromUrl(url);
+    const action = getActionFromUrl(url);
+    const callId = radioMonitor.startApiCall(service, action);
+
     try {
         // 尝试直接调用
         const response = await fetch(url, fetchOptions);
+        radioMonitor.endApiCall(callId, response.ok, response.ok ? undefined : `${response.status}`);
         return response;
     } catch (directError) {
         console.log("Direct fetch failed, trying proxy...", directError);
@@ -98,9 +128,11 @@ export async function apiFetch(
                     body: options.body
                 })
             });
+            radioMonitor.endApiCall(callId, response.ok, 'via proxy');
             return response;
         } catch (proxyError) {
             console.error("Proxy also failed:", proxyError);
+            radioMonitor.endApiCall(callId, false, 'failed');
             throw directError; // 抛出原始错误
         }
     }

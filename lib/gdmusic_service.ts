@@ -9,6 +9,10 @@
 const API_BASE = "https://music-api.gdstudio.xyz/api.php";
 const DEFAULT_SOURCE = "netease";
 
+// 稳定音乐源（只使用这些）
+const STABLE_SOURCES = ['netease', 'kuwo', 'joox'] as const;
+type StableSource = typeof STABLE_SOURCES[number];
+
 // ================== Interfaces ==================
 
 export interface IGDMusicTrack {
@@ -215,6 +219,40 @@ export async function getCompleteTrackData(track: IGDMusicTrack): Promise<{
     ]);
 
     return { track, url, albumArt, lyrics };
+}
+
+/**
+ * 搜索音乐并验证可播放
+ * 只使用稳定音乐源，返回验证过可以播放的歌曲
+ */
+export async function searchMusicWithValidation(
+    keyword: string,
+    maxResults: number = 5
+): Promise<{ track: IGDMusicTrack; url: string }[]> {
+    const validatedTracks: { track: IGDMusicTrack; url: string }[] = [];
+
+    // 依次尝试稳定音乐源
+    for (const source of STABLE_SOURCES) {
+        if (validatedTracks.length >= maxResults) break;
+
+        try {
+            const tracks = await searchMusic(keyword, 10, 1, source);
+
+            // 验证每首歌曲是否可播放
+            for (const track of tracks) {
+                if (validatedTracks.length >= maxResults) break;
+
+                const url = await getMusicUrl(track.id, 320, source);
+                if (url && url.startsWith('http')) {
+                    validatedTracks.push({ track, url });
+                }
+            }
+        } catch (e) {
+            console.warn(`Search failed for source ${source}:`, e);
+        }
+    }
+
+    return validatedTracks;
 }
 
 // Debug helper - expose to window for browser console testing

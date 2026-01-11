@@ -27,13 +27,22 @@ export async function POST(request: NextRequest) {
         }
 
         const response = await fetch(url, fetchOptions);
-        const data = await response.json();
+
+        // 尝试解析 JSON，失败则返回原始文本
+        const text = await response.text();
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch {
+            // 不是 JSON，返回原始文本
+            data = { rawResponse: text };
+        }
 
         return NextResponse.json(data, { status: response.status });
     } catch (error) {
         console.error('Proxy error:', error);
         return NextResponse.json(
-            { error: `Proxy failed: ${error}` },
+            { error: `Proxy failed: ${String(error)}` },
             { status: 500 }
         );
     }

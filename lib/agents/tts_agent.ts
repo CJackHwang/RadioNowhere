@@ -59,6 +59,13 @@ const CHARACTER_PROFILES: Record<string, {
         personality: '专业稳重，客观中立',
         accent: '标准新闻播音腔',
         scene: '新闻直播间，正式的播报环境'
+    },
+    announcer: {
+        name: '报时员',
+        role: '整点报时播报员',
+        personality: '专业严肃，声音沉稳有力',
+        accent: '标准播音腔，清晰准确',
+        scene: '电台报时间隙，庄重的报时环境'
     }
 };
 

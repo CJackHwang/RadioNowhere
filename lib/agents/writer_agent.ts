@@ -163,8 +163,28 @@ export class WriterAgent {
                         radioMonitor.log('WRITER', 'Show submitted successfully!', 'info');
                         // 从工具调用参数中解析 timeline（不是从 result）
                         try {
-                            const timelineJson = toolCall.args.timeline_json as string;
-                            finalTimeline = this.parseResponse(timelineJson);
+                            let timelineJson = toolCall.args.timeline_json;
+
+                            // 如果 timeline_json 是字符串，可能是被 JSON.stringify 过的
+                            // 尝试直接解析为对象
+                            if (typeof timelineJson === 'string') {
+                                try {
+                                    // 尝试直接 JSON.parse（处理已 stringify 的情况）
+                                    const parsed = JSON.parse(timelineJson);
+                                    if (typeof parsed === 'object' && parsed.blocks) {
+                                        // 成功解析为对象
+                                        finalTimeline = parsed;
+                                        break;
+                                    }
+                                } catch {
+                                    // 如果直接解析失败，使用 parseResponse 处理
+                                }
+                                // 使用 parseResponse 处理字符串内容
+                                finalTimeline = this.parseResponse(timelineJson);
+                            } else if (typeof timelineJson === 'object') {
+                                // 如果已经是对象，直接使用
+                                finalTimeline = timelineJson as ShowTimeline;
+                            }
                             break;
                         } catch (e) {
                             radioMonitor.log('WRITER', `Parse after submit failed: ${e}`, 'warn');
@@ -250,6 +270,11 @@ ${toolsDesc}
 2. 用 search_music 搜索合适的歌曲
 3. (可选) 用 get_lyrics 获取歌词
 4. 编写完整脚本后，用 submit_show 提交
+
+## ⚠️ 重要：节目结构要求
+- 每个节目**必须**以一首过渡音乐结尾（作为节目之间的衔接）
+- 即使是脱口秀节目，结尾也要有一首歌曲
+- 结尾音乐时长建议 30-60 秒
 
 ${historyContext}
 

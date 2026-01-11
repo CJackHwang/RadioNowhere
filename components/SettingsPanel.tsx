@@ -187,8 +187,10 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         headers['Authorization'] = `Bearer ${settings.apiKey}`;
                     }
                 } else {
-                    // Gemini Native TTS Test
-                    apiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent';
+                    // Gemini Native TTS Test - 使用用户配置的 endpoint
+                    const baseUrl = settings.ttsEndpoint || 'https://generativelanguage.googleapis.com';
+                    const ttsModel = settings.ttsModel || 'gemini-2.5-flash-preview-tts';
+                    apiUrl = `${baseUrl}/v1beta/models/${ttsModel}:generateContent`;
                     headers['x-goog-api-key'] = ttsKey;
                 }
 
@@ -200,7 +202,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         method,
                         headers,
                         body: {
-                            contents: [{ role: "user", parts: [{ text: '测试' }] }],
+                            contents: [{ parts: [{ text: 'Say the following text: 这是一个测试。' }] }],
                             generationConfig: {
                                 responseModalities: ['AUDIO'],
                                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } }

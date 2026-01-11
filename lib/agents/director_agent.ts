@@ -22,6 +22,7 @@ import { getSettings } from '../settings_store';
 import { saveSession } from '../session_store';
 import { mailQueue } from '../mail_queue';
 import { AUDIO } from '../constants';
+import { timeAnnouncementService } from '../time_announcement';
 
 // ================== Types ==================
 
@@ -86,6 +87,9 @@ export class DirectorAgent {
                 onTimelineReady: options.onTimelineReady
             };
         }
+
+        // 启动报时服务
+        timeAnnouncementService.start();
 
         // 开始执行循环
         await this.runShowLoop(options?.theme, options?.userRequest);
@@ -337,6 +341,7 @@ export class DirectorAgent {
         this.isRunning = false;
         audioMixer.stopAll();
         ttsAgent.abort();  // 中止所有 TTS 请求
+        timeAnnouncementService.stop(); // 停止报时服务
         this.context = null;
         this.preparedAudio.clear();
         this.nextTimeline = null;

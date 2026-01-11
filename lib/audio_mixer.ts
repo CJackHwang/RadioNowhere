@@ -368,8 +368,9 @@ export class AudioMixer {
             clearInterval(this.fadeInterval);
             this.fadeInterval = null;
         }
-        // 强制停止所有 Howler 音频（包括可能遗漏的）
-        Howler.unload();
+        // 注意：不要调用 Howler.unload()，这会卸载全局 AudioContext
+        // 导致后续新创建的 Howl 实例无法播放
+        // stopMusic() 和 stopVoice() 已经正确清理了各自的实例
     }
 
     /**

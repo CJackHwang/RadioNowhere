@@ -6,7 +6,7 @@
 // ================== 基础类型 ==================
 
 /** 主持人 ID */
-export type SpeakerId = 'host1' | 'host2' | 'guest' | 'news';
+export type SpeakerId = 'host1' | 'host2' | 'guest' | 'news' | 'announcer';
 
 /** 音乐控制动作 */
 export type MusicAction = 'play' | 'pause' | 'resume' | 'fade_out' | 'fade_in' | 'stop';
@@ -57,6 +57,12 @@ export const VOICE_PROFILES: Record<SpeakerId, VoiceProfile> = {
     gender: 'male',
     style: '专业稳重',
     description: '新闻播报员'
+  },
+  announcer: {
+    voiceName: 'Kore',
+    gender: 'female',
+    style: '专业严肃',
+    description: '整点报时播报员'
   }
 };
 

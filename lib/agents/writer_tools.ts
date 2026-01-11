@@ -3,7 +3,7 @@
  * 提供音乐搜索、歌词获取、节目提交等工具
  */
 
-import { searchMusic, getLyrics, IGDMusicTrack } from '../gdmusic_service';
+import { searchMusic, getLyrics, IGDMusicTrack, searchMusicWithValidation } from '../gdmusic_service';
 import { ShowTimeline } from '../types/radio_types';
 import { recordShow, recordSong, getRecentConcepts, getRecentSongs, isDuplicateConcept } from '../show_history';
 
@@ -97,34 +97,41 @@ export async function executeToolCall(
 
 async function executeSearchMusic(query: string, mood?: string): Promise<ToolResult> {
     try {
-        const searchQuery = mood ? `${query} ${mood}` : query;
-        const tracks = await searchMusic(searchQuery);
+        // 使用带验证的搜索，确保只返回可播放的歌曲
+        const validatedTracks = await searchMusicWithValidation(query, 5);
 
         // 过滤掉已播放的歌曲
         const recentSongs = getRecentSongs();
-        const filteredTracks = tracks.filter((track: IGDMusicTrack) =>
+        const filteredTracks = validatedTracks.filter(({ track }) =>
             !recentSongs.some(s =>
                 s.toLowerCase().includes(track.name.toLowerCase()) ||
                 track.name.toLowerCase().includes(s.toLowerCase())
             )
         );
 
-        const results = filteredTracks.slice(0, 5).map((track: IGDMusicTrack) => ({
+        const results = filteredTracks.map(({ track, url }) => ({
             title: track.name,
             artist: track.artist.join(', '),
             album: track.album,
             id: track.id,
-            lyricId: track.lyricId
+            lyricId: track.lyricId,
+            url: url, // 返回已验证的 URL
+            source: track.source
         }));
+
+        if (results.length === 0) {
+            return {
+                success: false,
+                error: `未找到可播放的歌曲："${query}"。请尝试其他歌手名或歌曲名。`
+            };
+        }
 
         return {
             success: true,
             data: {
-                query: searchQuery,
+                query,
                 results,
-                note: filteredTracks.length < tracks.length
-                    ? `已过滤 ${tracks.length - filteredTracks.length} 首近期播放过的歌曲`
-                    : undefined
+                note: `找到 ${results.length} 首可播放的歌曲（已验证链接有效）`
             }
         };
     } catch (error) {

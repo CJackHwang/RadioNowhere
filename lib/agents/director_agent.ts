@@ -461,9 +461,55 @@ export class DirectorAgent {
     }
 
     /**
-     * 预处理说话块（并发生成所有台词）
+     * 预处理说话块（智能选择单人/多人 TTS）
      */
     private async prepareTalkBlock(block: TalkBlock): Promise<void> {
+        const settings = getSettings();
+
+        // 收集唯一说话人数量
+        const uniqueSpeakers = new Set(block.scripts.map(s => s.speaker));
+
+        // Gemini TTS 且说话人数 ≤ 2 时，使用多说话人模式
+        if (settings.ttsProvider === 'gemini' && uniqueSpeakers.size <= 2 && block.scripts.length >= 2) {
+            await this.prepareTalkBlockMultiSpeaker(block);
+        } else {
+            await this.prepareTalkBlockSingle(block);
+        }
+    }
+
+    /**
+     * 多说话人模式预处理（Gemini 专用）
+     */
+    private async prepareTalkBlockMultiSpeaker(block: TalkBlock): Promise<void> {
+        const multiAudioId = `${block.id}-multi`;
+
+        if (this.preparedAudio.has(multiAudioId)) return;
+
+        try {
+            const result = await ttsAgent.generateMultiSpeakerSpeech(
+                block.scripts.map(s => ({
+                    speaker: s.speaker,
+                    text: s.text,
+                    voiceName: s.voiceName,
+                    mood: s.mood
+                }))
+            );
+
+            if (result.success && result.audioData) {
+                // 存储为整个块的音频
+                this.preparedAudio.set(multiAudioId, result.audioData);
+            }
+        } catch (error) {
+            console.error('Multi-speaker TTS preparation failed:', error);
+            // 降级为单独处理
+            await this.prepareTalkBlockSingle(block);
+        }
+    }
+
+    /**
+     * 单说话人模式预处理（原方法）
+     */
+    private async prepareTalkBlockSingle(block: TalkBlock): Promise<void> {
         const ttsPromises = block.scripts.map(async (script) => {
             const audioId = `${block.id}-${script.speaker}-${script.text.slice(0, 20)}`;
 
@@ -477,7 +523,7 @@ export class DirectorAgent {
                         mood: script.mood,
                         customStyle: script.voiceStyle,
                         priority: 8,
-                        voiceName: script.voiceName  // 传递 AI 指定的音色
+                        voiceName: script.voiceName
                     }
                 );
 
@@ -696,7 +742,39 @@ export class DirectorAgent {
             }
         }
 
-        // 播放所有台词
+        // 检查是否有多说话人合并音频
+        const multiAudioId = `${block.id}-multi`;
+        const multiAudioData = this.preparedAudio.get(multiAudioId);
+
+        if (multiAudioData) {
+            // 多说话人模式：播放整个块的合并音频
+            radioMonitor.log('DIRECTOR', `Playing multi-speaker audio for ${block.scripts.length} lines`, 'info');
+
+            // 发出所有脚本事件（用于字幕显示）
+            for (const script of block.scripts) {
+                radioMonitor.emitScript(script.speaker, script.text, block.id);
+            }
+
+            try {
+                await audioMixer.playVoice(multiAudioData);
+            } catch (e) {
+                console.warn('[Director] Multi-speaker voice playback failed:', e);
+            }
+
+            // 记录话题
+            for (const script of block.scripts) {
+                globalState.addTopic(script.text.slice(0, 50), script.speaker);
+            }
+        } else {
+            // 单说话人模式：逐句播放
+            await this.executeTalkBlockSingle(block);
+        }
+    }
+
+    /**
+     * 单说话人模式播放（逐句）
+     */
+    private async executeTalkBlockSingle(block: TalkBlock): Promise<void> {
         for (const script of block.scripts) {
             // 检测跳转请求，立即中断
             if (!this.isRunning || this.skipRequested) break;

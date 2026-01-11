@@ -23,7 +23,52 @@ const RETRY_DELAY_MS = 1000;
 // ================== Style Prompt Builder ==================
 
 /**
- * 构建 TTS 风格提示
+ * 角色详细配置（用于增强 TTS 提示词）
+ */
+const CHARACTER_PROFILES: Record<string, {
+    name: string;
+    role: string;
+    personality: string;
+    accent: string;
+    scene: string;
+}> = {
+    host1: {
+        name: '阿静',
+        role: '深夜电台女主持人',
+        personality: '温柔知性，声音清澈如月光，带着让人放松的治愈感',
+        accent: '标准普通话，略带南方口音的柔软',
+        scene: '午夜时分的电台直播间，柔和的灯光笼罩着操控台，窗外是城市的万家灯火'
+    },
+    host2: {
+        name: '小北',
+        role: '电台男主持人',
+        personality: '阳光开朗，声音有磁性，幽默风趣又不失专业',
+        accent: '北方普通话，清晰利落',
+        scene: '同一个深夜电台，与阿静搭档主持，气氛轻松愉快'
+    },
+    guest: {
+        name: '嘉宾',
+        role: '电台访谈嘉宾',
+        personality: '专业、有见解，说话有条理',
+        accent: '标准普通话',
+        scene: '电台访谈室，接受采访'
+    },
+    news: {
+        name: '新闻播报员',
+        role: '整点新闻播报员',
+        personality: '专业稳重，客观中立',
+        accent: '标准新闻播音腔',
+        scene: '新闻直播间，正式的播报环境'
+    }
+};
+
+/**
+ * 构建 TTS 风格提示（Google 官方推荐结构）
+ * 
+ * 结构：
+ * 1. AUDIO PROFILE - 角色身份和原型
+ * 2. THE SCENE - 场景和氛围
+ * 3. DIRECTOR'S NOTES - 风格、节奏、口音指导
  */
 export function buildStylePrompt(
     speaker: SpeakerId,
@@ -31,34 +76,50 @@ export function buildStylePrompt(
     customStyle?: string
 ): string {
     const profile = VOICE_PROFILES[speaker];
+    const character = CHARACTER_PROFILES[speaker] || CHARACTER_PROFILES.host1;
 
     const moodDescriptions: Record<MoodType, string> = {
-        cheerful: '开朗愉快，带着微笑的语气',
-        calm: '平静舒缓，让人感到放松',
-        excited: '兴奋激动，充满热情',
-        serious: '严肃认真，专业可信',
-        warm: '温暖亲切，像老朋友一样',
-        playful: '俏皮活泼，带点调侃',
-        melancholy: '略带忧郁，深情款款',
-        mysterious: '神秘莫测，引人入胜'
+        cheerful: '开朗愉快，带着微笑的语气，让听众感到快乐',
+        calm: '平静舒缓，像轻柔的夜风，让人感到放松',
+        excited: '兴奋激动，语速略快，充满热情和感染力',
+        serious: '严肃认真，专业可信，语调沉稳',
+        warm: '温暖亲切，像老朋友一样，充满关怀',
+        playful: '俏皮活泼，带点调侃，语调上扬',
+        melancholy: '略带忧郁，深情款款，声音轻柔',
+        mysterious: '神秘莫测，引人入胜，语速放慢'
     };
 
-    let prompt = `# AUDIO PROFILE: ${speaker === 'host1' ? '阿静' : speaker === 'host2' ? '小北' : speaker}
-## ${profile.description}
+    let prompt = `# AUDIO PROFILE: ${character.name}
+## "${character.role}"
+
+${character.personality}
+
+## THE SCENE: 深夜电台直播间
+${character.scene}。红色的 "ON AIR" 指示灯亮着，话筒前的主持人正准备开口。
 
 ### DIRECTOR'S NOTES
 Style: ${profile.style}`;
 
     if (mood) {
-        prompt += `\nMood: ${moodDescriptions[mood]}`;
+        prompt += `
+Mood: ${moodDescriptions[mood]}`;
     }
+
+    prompt += `
+Pacing: 适中舒缓，像深夜电台主持人一样，不急不慢
+Accent: ${character.accent}`;
 
     if (customStyle) {
-        prompt += `\nSpecial Instructions: ${customStyle}`;
+        prompt += `
+Special Instructions: ${customStyle}`;
     }
 
-    prompt += `\nLanguage: 中文普通话，自然流畅
-Pace: 适中，像电台主持人一样`;
+    prompt += `
+
+### PERFORMANCE GUIDANCE
+- 声音要有"微笑感"，让听众感受到温暖
+- 语调自然起伏，避免机械朗读
+- 适当停顿，让内容更有节奏感`;
 
     return prompt;
 }
@@ -211,28 +272,11 @@ export class TTSAgent {
         const voiceInfo = this.getVoiceForSpeaker(speaker);
         const finalVoiceName = options?.voiceName || voiceInfo.voiceName;
 
-        // 构建风格提示
-        let stylePrompt = `# AUDIO PROFILE: ${speaker}\n## ${voiceInfo.description}\n`;
-
-        if (options?.mood) {
-            const moodDescriptions: Record<MoodType, string> = {
-                cheerful: '开朗愉快，带着微笑的语气',
-                calm: '平静舒缓，让人感到放松',
-                excited: '兴奋激动，充满热情',
-                serious: '严肃认真，专业可信',
-                warm: '温暖亲切，像老朋友一样',
-                playful: '俏皮活泼，带点调侃',
-                melancholy: '略带忧郁，深情款款',
-                mysterious: '神秘莫测，引人入胜'
-            };
-            stylePrompt += `\nMood: ${moodDescriptions[options.mood]}`;
-        }
-
-        if (options?.customStyle) {
-            stylePrompt += `\nSpecial Instructions: ${options.customStyle}`;
-        }
-
-        stylePrompt += `\nLanguage: 中文普通话，自然流畅\nPace: 适中，像电台主持人一样`;
+        // 使用增强的提示词构建器（仅对标准角色有效）
+        const speakerId = ['host1', 'host2', 'guest', 'news'].includes(speaker)
+            ? speaker as SpeakerId
+            : 'host1';
+        const stylePrompt = buildStylePrompt(speakerId, options?.mood, options?.customStyle);
 
         const request: TTSRequest = {
             id: `tts-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -243,6 +287,142 @@ export class TTSAgent {
         };
 
         return this.addToQueue(request);
+    }
+
+    /**
+     * 多说话人 TTS 生成（Gemini 专用）
+     * 支持最多 2 个说话人的连续对话合并
+     */
+    async generateMultiSpeakerSpeech(
+        scripts: Array<{
+            speaker: string;
+            text: string;
+            voiceName?: string;
+            mood?: MoodType;
+        }>
+    ): Promise<TTSResult> {
+        const settings = getSettings();
+
+        // 微软 TTS 不支持多说话人，降级为单独处理
+        if (settings.ttsProvider === 'microsoft') {
+            radioMonitor.log('TTS', 'Microsoft TTS 不支持多说话人，降级为单独处理', 'warn');
+            // 返回第一句的处理结果
+            if (scripts.length > 0) {
+                return this.generateSpeech(scripts[0].text, scripts[0].speaker as SpeakerId, {
+                    voiceName: scripts[0].voiceName,
+                    mood: scripts[0].mood
+                });
+            }
+            return { id: 'empty', success: false, error: 'No scripts provided' };
+        }
+
+        // 收集唯一说话人（最多2个）
+        const speakerMap = new Map<string, string>();
+        for (const script of scripts) {
+            if (speakerMap.size >= 2) break;
+            if (!speakerMap.has(script.speaker)) {
+                const voiceInfo = this.getVoiceForSpeaker(script.speaker);
+                speakerMap.set(script.speaker, script.voiceName || voiceInfo.voiceName);
+            }
+        }
+
+        // 构建对话文本
+        const conversationText = scripts
+            .map(s => `${s.speaker}: ${s.text}`)
+            .join('\n');
+
+        // 构建多说话人配置
+        const speakerVoiceConfigs = Array.from(speakerMap.entries()).map(([speaker, voiceName]) => ({
+            speaker,
+            voiceConfig: {
+                prebuiltVoiceConfig: {
+                    voiceName
+                }
+            }
+        }));
+
+        radioMonitor.updateStatus('TTS', 'BUSY', `Multi-speaker: ${scripts.length} lines`);
+        radioMonitor.log('TTS', `Gemini 多说话人 TTS: ${speakerMap.size} 人, ${scripts.length} 句`, 'info');
+
+        try {
+            const audioData = await this.callGeminiMultiSpeakerApi(conversationText, speakerVoiceConfigs);
+            return {
+                id: `multi-${Date.now()}`,
+                success: true,
+                audioData
+            };
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            radioMonitor.log('TTS', `Multi-speaker TTS failed: ${errorMsg}`, 'error');
+            return {
+                id: `multi-${Date.now()}`,
+                success: false,
+                error: errorMsg
+            };
+        }
+    }
+
+    /**
+     * Gemini 多说话人 API 调用
+     */
+    private async callGeminiMultiSpeakerApi(
+        conversationText: string,
+        speakerVoiceConfigs: Array<{
+            speaker: string;
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: string } };
+        }>
+    ): Promise<ArrayBuffer> {
+        const settings = getSettings();
+        const ttsApiKey = settings.ttsApiKey || settings.apiKey;
+        const ttsModel = settings.ttsModel || 'gemini-2.5-flash-preview-tts';
+
+        const baseEndpoint = settings.ttsEndpoint?.trim()
+            || 'https://generativelanguage.googleapis.com';
+        const normalizedEndpoint = baseEndpoint.replace(/\/$/, '');
+
+        const prompt = `TTS the following conversation:\n${conversationText}`;
+
+        const body = {
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+                responseModalities: ['AUDIO'],
+                speechConfig: {
+                    multiSpeakerVoiceConfig: {
+                        speakerVoiceConfigs
+                    }
+                }
+            }
+        };
+
+        const apiUrl = `${normalizedEndpoint}/v1beta/models/${ttsModel}:generateContent?key=${ttsApiKey}`;
+
+        this.abortController = new AbortController();
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: this.abortController.signal
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Gemini Multi-Speaker TTS Error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        const audioBase64 = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+        if (!audioBase64) {
+            throw new Error('No audio data in response');
+        }
+
+        // Base64 -> ArrayBuffer
+        const binaryString = atob(audioBase64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
     }
 
     /**

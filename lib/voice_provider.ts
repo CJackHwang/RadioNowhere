@@ -48,13 +48,44 @@ function convertMicrosoftVoice(voice: MicrosoftTTSVoice): UnifiedVoice {
 // ================== Public API ==================
 
 /**
+ * Edge TTS 已验证可用的音色白名单
+ * 基于 edge-tts --list-voices 确认支持的音色
+ */
+const VERIFIED_EDGE_VOICES = new Set([
+    // 中文 (zh-CN) - 核心音色
+    'XiaoxiaoNeural',     // 晓晓 - 女声，最常用
+    'XiaoyiNeural',       // 晓伊 - 女声
+    'YunyangNeural',      // 云扬 - 男声，新闻专业
+    'YunxiaNeural',       // 云夏 - 男声，童声
+    'YunjianNeural',      // 云健 - 男声
+    'YunxiNeural',        // 云希 - 男声
+    // 英文 (en-US) - 已验证音色
+    'AriaNeural',         // Aria - 女声
+    'JennyNeural',        // Jenny - 女声
+    'GuyNeural',          // Guy - 男声
+    'ChristopherNeural',  // Christopher - 男声
+    'EricNeural',         // Eric - 男声
+    'MichelleNeural',     // Michelle - 女声
+    'RogerNeural',        // Roger - 男声
+    'SteffanNeural',      // Steffan - 男声
+    // 日语 (ja-JP) - 已验证音色
+    'NanamiNeural',       // Nanami - 女声
+    'KeitaNeural',        // Keita - 男声
+    'MayuNeural',         // Mayu - 女声
+    'NaokiNeural',        // Naoki - 男声
+]);
+
+/**
  * 获取当前 TTS 渠道可用的音色列表
  */
 export function getAvailableVoices(): UnifiedVoice[] {
     const settings = getSettings();
 
     if (settings.ttsProvider === 'microsoft') {
-        return MICROSOFT_TTS_VOICES.map(convertMicrosoftVoice);
+        // 只返回 Edge TTS 已验证支持的音色
+        return MICROSOFT_TTS_VOICES
+            .filter(v => VERIFIED_EDGE_VOICES.has(v.name))
+            .map(convertMicrosoftVoice);
     }
 
     return TTS_VOICES.map(convertGeminiVoice);

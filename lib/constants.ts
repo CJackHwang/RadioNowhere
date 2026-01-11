@@ -47,7 +47,7 @@ export const AUDIO = {
     FADE_DURATION_SLOW: 2000,         // 慢速淡入淡出
 
     // 超时设置 (ms)
-    MUSIC_LOAD_TIMEOUT: 15000,        // 音乐加载超时
+    MUSIC_LOAD_TIMEOUT: 30000,        // 音乐加载超时
     TTS_TIMEOUT: 30000,               // TTS 生成超时
 
     // 延迟设置 (ms)

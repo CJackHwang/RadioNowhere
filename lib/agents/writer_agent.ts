@@ -362,7 +362,31 @@ ${getVoiceListForPrompt()}
         let headers: Record<string, string> = { 'Content-Type': 'application/json' };
         let body: unknown;
 
-        if (settings.apiType === 'gemini') {
+        if (settings.apiType === 'vertexai') {
+            // Vertex AI 格式
+            const isGcpApiKey = settings.apiKey.startsWith('AIza');
+            url = `https://${settings.gcpLocation}-aiplatform.googleapis.com/v1/projects/${settings.gcpProject}/locations/${settings.gcpLocation}/publishers/google/models/${settings.modelName}:generateContent`;
+
+            if (isGcpApiKey) {
+                url += `?key=${settings.apiKey}`;
+            } else {
+                headers['Authorization'] = `Bearer ${settings.apiKey}`;
+            }
+
+            // Vertex AI 使用 contents 格式（类似 Gemini）
+            const contents = messages.map(m => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }]
+            }));
+
+            body = {
+                contents,
+                generationConfig: {
+                    temperature: 0.8,
+                    maxOutputTokens: 8192
+                }
+            };
+        } else if (settings.apiType === 'gemini') {
             // Gemini 格式
             const endpoint = settings.endpoint || 'https://generativelanguage.googleapis.com';
             url = `${this.normalizeEndpoint(endpoint)}/models/${settings.modelName}:generateContent`;

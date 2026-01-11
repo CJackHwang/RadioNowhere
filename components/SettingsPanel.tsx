@@ -202,7 +202,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         method,
                         headers,
                         body: {
-                            contents: [{ parts: [{ text: 'Say the following text: 这是一个测试。' }] }],
+                            contents: [{ role: "user", parts: [{ text: 'Say the following text: 这是一个测试。' }] }],
                             generationConfig: {
                                 responseModalities: ['AUDIO'],
                                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } }
@@ -217,7 +217,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 } else {
                     const err = await response.text();
                     setTtsTestStatus("error");
-                    setTtsTestMessage(`❌ ${response.status}: ${err.slice(0, 50)}`);
+                    setTtsTestMessage(`❌ ${response.status}: ${err.slice(0, 200)}`);
                 }
             }
         } catch (e) {

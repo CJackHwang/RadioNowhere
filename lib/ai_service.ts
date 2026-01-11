@@ -94,11 +94,12 @@ function getActionFromUrl(url: string): string {
  */
 export async function apiFetch(
     url: string,
-    options: { method: string; headers: Record<string, string>; body?: unknown }
+    options: { method: string; headers: Record<string, string>; body?: unknown; signal?: AbortSignal }
 ): Promise<Response> {
     const fetchOptions: RequestInit = {
         method: options.method,
         headers: options.headers,
+        signal: options.signal,
     };
 
     if (options.body && options.method !== 'GET') {
@@ -115,6 +116,12 @@ export async function apiFetch(
         radioMonitor.endApiCall(callId, response.ok, response.ok ? undefined : `${response.status}`);
         return response;
     } catch (directError) {
+        // 如果是中止信号导致的错误，直接抛出
+        if (options.signal?.aborted) {
+            radioMonitor.endApiCall(callId, false, 'aborted');
+            throw directError;
+        }
+
         console.log("Direct fetch failed, trying proxy...", directError);
         // fallback 到代理
         try {
@@ -126,7 +133,8 @@ export async function apiFetch(
                     method: options.method,
                     headers: options.headers,
                     body: options.body
-                })
+                }),
+                signal: options.signal,
             });
             radioMonitor.endApiCall(callId, response.ok, 'via proxy');
             return response;

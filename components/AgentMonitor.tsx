@@ -209,13 +209,12 @@ export default function AgentMonitor() {
                                     </div>
                                 ) : (
                                     logs.slice(-15).map((log, i) => (
-                                        <div key={i} className="text-[9px] font-mono leading-relaxed">
+                                        <div key={i} className="text-[9px] font-mono leading-relaxed mb-1">
                                             <span className="text-neutral-600">[{log.agent}]</span>{' '}
-                                            <span className={
-                                                log.level === 'error' ? 'text-red-400' :
+                                            <span className={`break-all ${log.level === 'error' ? 'text-red-400' :
                                                     log.level === 'warn' ? 'text-yellow-400' :
                                                         'text-neutral-400'
-                                            }>{log.message.slice(0, 80)}</span>
+                                                }`}>{log.message.slice(0, 300)}{log.message.length > 300 ? '...' : ''}</span>
                                         </div>
                                     ))
                                 )}

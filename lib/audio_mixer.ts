@@ -86,7 +86,7 @@ export class AudioMixer {
     /**
      * 播放音乐（带超时）
      */
-    async playMusic(url: string, options?: { fadeIn?: number }): Promise<void> {
+    async playMusic(url: string, options?: { fadeIn?: number; format?: string }): Promise<void> {
         const LOAD_TIMEOUT = AUDIO.MUSIC_LOAD_TIMEOUT;
 
         return new Promise((resolve, reject) => {
@@ -121,6 +121,7 @@ export class AudioMixer {
 
             this.musicHowl = new Howl({
                 src: [url],
+                format: options?.format ? [options.format] : undefined, // 显式指定格式（用于 Blob URL）
                 html5: false,  // 使用 Web Audio API，完全缓冲后播放（避免串流卡顿）
                 preload: true,
                 volume: startVolume,

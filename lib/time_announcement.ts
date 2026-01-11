@@ -16,6 +16,7 @@ interface TimeAnnouncementState {
     preparedAudio: ArrayBuffer | null;
     checkInterval: NodeJS.Timeout | null;
     isPlaying: boolean; // 防止重复触发
+    isPreparing: boolean; // 防止重复生成
 }
 
 // ================== Constants ==================
@@ -33,7 +34,8 @@ class TimeAnnouncementService {
         nextAnnouncementTime: null,
         preparedAudio: null,
         checkInterval: null,
-        isPlaying: false
+        isPlaying: false,
+        isPreparing: false
     };
 
     private pausedState: {
@@ -49,6 +51,7 @@ class TimeAnnouncementService {
 
         this.state.isActive = true;
         this.state.isPlaying = false;
+        this.state.isPreparing = false;
         this.state.nextAnnouncementTime = this.calculateNextAnnouncementTime();
 
         radioMonitor.log('DIRECTOR', `Time announcement started. Next: ${this.state.nextAnnouncementTime?.toLocaleTimeString()}`, 'info');
@@ -69,6 +72,7 @@ class TimeAnnouncementService {
         }
         this.state.preparedAudio = null;
         this.state.nextAnnouncementTime = null;
+        this.state.isPreparing = false;
     }
 
     /**
@@ -119,8 +123,8 @@ class TimeAnnouncementService {
     private async check(): Promise<void> {
         if (!this.state.isActive || !this.state.nextAnnouncementTime) return;
 
-        // 如果正在播放，跳过检查
-        if (this.state.isPlaying) return;
+        // 如果正在播放或正在准备，跳过检查
+        if (this.state.isPlaying || this.state.isPreparing) return;
 
         const now = Date.now();
         const targetTime = this.state.nextAnnouncementTime.getTime();
@@ -144,10 +148,12 @@ class TimeAnnouncementService {
     private async prepareTTS(): Promise<void> {
         if (!this.state.nextAnnouncementTime) return;
 
-        const text = this.generateAnnouncementText(this.state.nextAnnouncementTime);
-        radioMonitor.log('DIRECTOR', `Preparing time announcement: ${text}`, 'info');
+        this.state.isPreparing = true;
 
         try {
+            const text = this.generateAnnouncementText(this.state.nextAnnouncementTime);
+            radioMonitor.log('DIRECTOR', `Preparing time announcement: ${text}`, 'info');
+
             // 使用严肃的报时音色
             const result = await ttsAgent.generateSpeech(
                 text,
@@ -161,6 +167,8 @@ class TimeAnnouncementService {
             }
         } catch (error) {
             radioMonitor.log('DIRECTOR', `Failed to prepare time announcement: ${error}`, 'error');
+        } finally {
+            this.state.isPreparing = false;
         }
     }
 

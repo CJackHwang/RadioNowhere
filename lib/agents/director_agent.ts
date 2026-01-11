@@ -45,7 +45,9 @@ export class DirectorAgent {
     private isRunning = false;
     private preparedAudio: Map<string, ArrayBuffer> = new Map();
     private musicCache: Map<string, IGDMusicTrack> = new Map();
-    private musicUrlCache: Map<string, string> = new Map(); // 预加载的音乐 URL
+    private musicUrlCache: Map<string, { url: string; cachedAt: number }> = new Map(); // 预加载的音乐 URL + 缓存时间
+    private musicDataCache: Map<string, Blob> = new Map(); // 下载的音乐文件缓存
+    private readonly MUSIC_URL_TTL_MS = 10 * 60 * 1000; // URL 有效期：10 分钟
 
     // 双缓冲：下一段时间线预生成
     private nextTimeline: ShowTimeline | null = null;
@@ -57,6 +59,10 @@ export class DirectorAgent {
     // Session ID 防止并行播放
     private currentSessionId = 0;
     private targetBlockIndex = -1;
+
+    // 后台预加载 worker
+    private preloadWorkerInterval: ReturnType<typeof setInterval> | null = null;
+    private isPreparing: Set<string> = new Set(); // 正在准备中的块 ID
 
     /**
      * 启动电台节目
@@ -158,6 +164,9 @@ export class DirectorAgent {
                 radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
                 const preloadCount = getSettings().preloadBlockCount;
                 await this.prepareBlocks(0, preloadCount);
+
+                // 启动后台预加载 worker（持续保持缓冲区满）
+                this.startPreloadWorker();
 
                 // 🔥 关键：开始播放当前节目的同时，并行生成下一期节目
                 const executePromise = this.executeTimeline(sessionId);
@@ -395,11 +404,14 @@ export class DirectorAgent {
      */
     stopShow(): void {
         this.isRunning = false;
+        this.stopPreloadWorker(); // 停止后台预加载
         audioMixer.stopAll();
         ttsAgent.abort();  // 中止所有 TTS 请求
         timeAnnouncementService.stop(); // 停止报时服务
         this.context = null;
         this.preparedAudio.clear();
+        this.musicDataCache.clear(); // 清理下载的音乐
+        this.isPreparing.clear();
         this.nextTimeline = null;
         this.isPreparingNext = false;
         globalState.reset();
@@ -408,6 +420,111 @@ export class DirectorAgent {
         radioMonitor.updateStatus('WRITER', 'IDLE', 'Disconnected');
         radioMonitor.updateStatus('TTS', 'IDLE', 'Disconnected');
         radioMonitor.updateStatus('MIXER', 'IDLE', 'Disconnected');
+    }
+
+    /**
+     * 启动后台预加载 worker
+     * 持续监控缓冲区，始终保持指定数量的音频块准备就绪
+     */
+    private startPreloadWorker(): void {
+        if (this.preloadWorkerInterval) return; // 已经在运行
+
+        const WORKER_INTERVAL_MS = 2000; // 每 2 秒检查一次
+
+        this.preloadWorkerInterval = setInterval(async () => {
+            if (!this.isRunning || !this.context) return;
+
+            const { timeline, currentBlockIndex } = this.context;
+            const preloadCount = getSettings().preloadBlockCount;
+            const endIndex = Math.min(currentBlockIndex + preloadCount, timeline.blocks.length);
+
+            // 检查从当前块到 preloadCount 范围内的所有块
+            for (let i = currentBlockIndex; i < endIndex; i++) {
+                const block = timeline.blocks[i];
+                if (!block) continue;
+
+                // 检查是否已准备好或正在准备
+                if (this.isBlockPrepared(block) || this.isPreparing.has(block.id)) {
+                    continue;
+                }
+
+                // 标记为正在准备
+                this.isPreparing.add(block.id);
+                radioMonitor.log('DIRECTOR', `Preloader: preparing block ${i} (${block.type})`, 'trace');
+
+                // 异步准备，不阻塞 worker
+                this.prepareBlockAsync(block).finally(() => {
+                    this.isPreparing.delete(block.id);
+                });
+            }
+
+            // 日志：缓冲区状态
+            const preparedCount = this.countPreparedBlocks(currentBlockIndex, endIndex);
+            radioMonitor.updateStatus('TTS', 'READY', `Buffer: ${preparedCount}/${preloadCount}`);
+        }, WORKER_INTERVAL_MS);
+
+        radioMonitor.log('DIRECTOR', 'Preload worker started', 'info');
+    }
+
+    /**
+     * 停止后台预加载 worker
+     */
+    private stopPreloadWorker(): void {
+        if (this.preloadWorkerInterval) {
+            clearInterval(this.preloadWorkerInterval);
+            this.preloadWorkerInterval = null;
+            radioMonitor.log('DIRECTOR', 'Preload worker stopped', 'info');
+        }
+    }
+
+    /**
+     * 检查块是否已准备好
+     */
+    private isBlockPrepared(block: TimelineBlock): boolean {
+        if (block.type === 'talk') {
+            const talkBlock = block as TalkBlock;
+            // 检查多说话人模式
+            const multiAudioId = `${block.id}-multi`;
+            if (this.preparedAudio.has(multiAudioId)) return true;
+            // 检查单说话人模式（所有脚本都已准备）
+            return talkBlock.scripts.every(script => {
+                const audioId = `${block.id}-${script.speaker}-${script.text.slice(0, 20)}`;
+                return this.preparedAudio.has(audioId);
+            });
+        } else if (block.type === 'music') {
+            const musicBlock = block as MusicBlock;
+            // 检查是否已下载到本地缓存
+            return this.musicDataCache.has(musicBlock.search);
+        }
+        return true; // music_control 等不需要准备
+    }
+
+    /**
+     * 计算已准备好的块数量
+     */
+    private countPreparedBlocks(startIndex: number, endIndex: number): number {
+        if (!this.context) return 0;
+        let count = 0;
+        for (let i = startIndex; i < endIndex; i++) {
+            const block = this.context.timeline.blocks[i];
+            if (block && this.isBlockPrepared(block)) count++;
+        }
+        return count;
+    }
+
+    /**
+     * 异步准备单个块
+     */
+    private async prepareBlockAsync(block: TimelineBlock): Promise<void> {
+        try {
+            if (block.type === 'talk') {
+                await this.prepareTalkBlock(block as TalkBlock);
+            } else if (block.type === 'music') {
+                await this.prepareMusicBlock(block as MusicBlock);
+            }
+        } catch (error) {
+            console.error(`[Preloader] Failed to prepare block ${block.id}:`, error);
+        }
     }
 
     /**
@@ -543,8 +660,9 @@ export class DirectorAgent {
         // 收集唯一说话人数量
         const uniqueSpeakers = new Set(block.scripts.map(s => s.speaker));
 
-        // Gemini TTS 且说话人数 ≤ 2 时，使用多说话人模式
-        if (settings.ttsProvider === 'gemini' && uniqueSpeakers.size <= 2 && block.scripts.length >= 2) {
+        // Gemini TTS 且正好 2 个说话人时，使用多说话人模式
+        // 注意：multi-speaker API 需要至少 2 个不同的说话人
+        if (settings.ttsProvider === 'gemini' && uniqueSpeakers.size === 2 && block.scripts.length >= 2) {
             await this.prepareTalkBlockMultiSpeaker(block);
         } else {
             await this.prepareTalkBlockSingle(block);
@@ -608,37 +726,60 @@ export class DirectorAgent {
                 console.error('TTS preparation failed:', error);
             }
         });
-
         await Promise.all(ttsPromises);
     }
 
     /**
-     * 预处理音乐块 (获取音乐URL和歌词)
+     * 预处理音乐块 (获取音乐URL、下载并获取歌词)
      */
     private async prepareMusicBlock(block: MusicBlock): Promise<void> {
-        if (this.musicCache.has(block.search) && this.musicUrlCache.has(block.search)) {
-            return; // 已经完全缓存
+        // 1. 检查是否已完全下载
+        if (this.musicDataCache.has(block.search)) {
+            // 检查缓存是否有效（这里假设 Blob 只要在内存中就有效，虽然 URL 可能过期但 Blob 用于本地播放）
+            radioMonitor.log('DIRECTOR', `Music cache hit (RAM): ${block.search}`, 'trace');
+            return;
+        }
+
+        // 2. 检查是否有 URL 缓存但未下载（例如下载失败的情况）
+        const cachedUrl = this.musicUrlCache.get(block.search);
+        let urlToDownload = cachedUrl?.url;
+
+        // 如果 URL 过期，清除
+        if (cachedUrl) {
+            const age = Date.now() - cachedUrl.cachedAt;
+            if (age >= this.MUSIC_URL_TTL_MS) {
+                this.musicUrlCache.delete(block.search);
+                urlToDownload = undefined;
+                radioMonitor.log('DIRECTOR', `Music URL expired, re-fetching...`, 'info');
+            }
         }
 
         try {
-            const tracks = await searchMusic(block.search);
-            if (tracks.length > 0) {
-                const track = tracks[0];
-                this.musicCache.set(block.search, track);
+            if (!this.musicCache.has(block.search)) {
+                radioMonitor.log('DIRECTOR', `Searching music: ${block.search}`, 'info');
+                const tracks = await searchMusic(block.search);
+                if (tracks.length > 0) {
+                    this.musicCache.set(block.search, tracks[0]);
+                } else {
+                    radioMonitor.log('DIRECTOR', `Music not found: ${block.search}`, 'warn');
+                    return;
+                }
+            }
 
-                // 并行获取 URL 和歌词
-                const [url, lyrics] = await Promise.all([
+            const track = this.musicCache.get(block.search)!;
+
+            // 获取 URL (如果没有有效缓存)
+            if (!urlToDownload) {
+                const [newUrl, lyrics] = await Promise.all([
                     getMusicUrl(track.id, 320, track.source),
                     getLyrics(track.lyricId, track.source)
                 ]);
 
-                // 缓存 URL
-                if (url) {
-                    this.musicUrlCache.set(block.search, url);
-                    console.log('[Director] Preloaded music URL for:', track.name);
+                if (newUrl) {
+                    urlToDownload = newUrl;
+                    this.musicUrlCache.set(block.search, { url: newUrl, cachedAt: Date.now() });
                 }
 
-                // 存储歌词到全局上下文
                 if (lyrics?.lyric) {
                     const cleanLyrics = this.parseLrcToText(lyrics.lyric);
                     globalState.addRecentlyPlayedSong({
@@ -646,11 +787,25 @@ export class DirectorAgent {
                         artist: track.artist.join(', '),
                         lyrics: cleanLyrics.slice(0, 500)
                     });
-                    console.log('[Director] Fetched lyrics for:', track.name);
                 }
             }
+
+            // 执行下载
+            if (urlToDownload) {
+                radioMonitor.log('DIRECTOR', `Downloading music: ${track.name}...`, 'info');
+                const response = await fetch(urlToDownload);
+                if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+
+                const blob = await response.blob();
+                this.musicDataCache.set(block.search, blob);
+
+                radioMonitor.log('DIRECTOR', `✓ Music downloaded: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+            } else {
+                radioMonitor.log('DIRECTOR', `✗ Failed to get URL for: ${track.name}`, 'warn');
+            }
+
         } catch (error) {
-            console.error('Music preload failed:', error);
+            radioMonitor.log('DIRECTOR', `✗ Music preload failed: ${block.search} - ${error}`, 'error');
         }
     }
 
@@ -742,12 +897,8 @@ export class DirectorAgent {
                     playbackPosition: 0
                 });
 
-                // 预处理后续块
-                const remainingBlocks = timeline.blocks.length - this.context.currentBlockIndex;
-                if (remainingBlocks > 0) {
-                    const preloadCount = getSettings().preloadBlockCount;
-                    this.prepareBlocks(this.context.currentBlockIndex, preloadCount);
-                }
+                // 后备：触发预加载检查（主要由后台 worker 持续处理）
+                // 这里作为额外保险，确保播放时缓冲区不会意外为空
             }
         }
 
@@ -967,23 +1118,52 @@ export class DirectorAgent {
             }
         }
 
-        // 优先使用预加载的 URL
-        let url = this.musicUrlCache.get(block.search);
+        // 优先使用预加载的媒体（下载 > URL）
+        let url: string | undefined;
+        let blobUrl: string | undefined;
         let track = this.musicCache.get(block.search);
 
-        // 如果没有缓存，实时获取
+        // 1. 检查下载缓存
+        if (this.musicDataCache.has(block.search)) {
+            const blob = this.musicDataCache.get(block.search)!;
+            blobUrl = URL.createObjectURL(blob);
+            url = blobUrl;
+            radioMonitor.log('DIRECTOR', `Playing downloaded music: ${block.search}`, 'info');
+        }
+        // 2. 检查 URL 缓存
+        else {
+            const cachedItem = this.musicUrlCache.get(block.search);
+            if (cachedItem) {
+                const age = Date.now() - cachedItem.cachedAt;
+                if (age < this.MUSIC_URL_TTL_MS) {
+                    url = cachedItem.url;
+                } else {
+                    radioMonitor.log('DIRECTOR', `Music URL expired during playback: ${block.search}`, 'info');
+                }
+            }
+        }
+
+        // 如果没有缓存或已过期，实时获取
         if (!track || !url) {
             const tracks = await searchMusic(block.search);
             if (tracks.length > 0) {
                 track = tracks[0];
+                this.musicCache.set(block.search, track); // 确保 track 被缓存
                 url = await getMusicUrl(track.id) || undefined;
             }
         }
+
         if (url && track) {
             radioMonitor.log('DIRECTOR', `Playing music: ${track.name}`, 'info');
             await audioMixer.playMusic(url, {
-                fadeIn: block.fadeIn
+                fadeIn: block.fadeIn,
+                format: blobUrl ? 'mp3' : undefined // Blob URL 需要显式指定格式，默认为 mp3
             });
+
+            // 如果使用 Blob URL，延迟释放以确保 Howler 加载完成
+            if (blobUrl) {
+                setTimeout(() => URL.revokeObjectURL(blobUrl!), 30000); // 30秒后释放，足够加载了
+            }
 
             // 记录到 globalState
             globalState.addTrack(block.search);

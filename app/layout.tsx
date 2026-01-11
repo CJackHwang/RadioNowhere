@@ -14,6 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://radionowhere.cjack.top"),
   title: {
     template: "%s | Radio Nowhere",
     default: "Radio Nowhere",
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Radio Nowhere",
     description: "The Frequency of the Lost. A real-time AI generated radio station.",
-    url: "https://radionowhere.vercel.app",
+    url: "https://radionowhere.cjack.top",
     siteName: "Radio Nowhere",
     images: [
       {

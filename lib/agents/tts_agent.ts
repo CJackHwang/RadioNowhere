@@ -383,10 +383,6 @@ export class TTSAgent {
         const ttsApiKey = settings.ttsApiKey || settings.apiKey;
         const ttsModel = settings.ttsModel || 'gemini-2.5-flash-preview-tts';
 
-        const baseEndpoint = settings.ttsEndpoint?.trim()
-            || 'https://generativelanguage.googleapis.com';
-        const normalizedEndpoint = baseEndpoint.replace(/\/$/, '');
-
         const prompt = `TTS the following conversation:\n${conversationText}`;
 
         const body = {
@@ -401,19 +397,52 @@ export class TTSAgent {
             }
         };
 
-        const apiUrl = `${normalizedEndpoint}/v1beta/models/${ttsModel}:generateContent?key=${ttsApiKey}`;
+        let response: Response;
 
-        this.abortController = new AbortController();
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal: this.abortController.signal
-        });
+        if (settings.apiType === 'vertexai' && settings.ttsUseVertex) {
+            // 使用 Vertex AI 配置
+            const isGcpApiKey = settings.apiKey.startsWith('AIza');
+            const apiUrl = buildVertexUrl(
+                settings.gcpProject,
+                settings.gcpLocation,
+                ttsModel,
+                'generateContent'
+            ) + (isGcpApiKey ? `?key=${settings.apiKey}` : '');
+
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+
+            if (!isGcpApiKey) {
+                headers['Authorization'] = `Bearer ${settings.apiKey}`;
+            }
+
+            this.abortController = new AbortController();
+            response = await apiFetch(apiUrl, {
+                method: 'POST',
+                headers,
+                body,
+                signal: this.abortController.signal
+            });
+        } else {
+            // 使用 Gemini Native (AI Studio) 配置
+            const baseEndpoint = settings.ttsEndpoint?.trim()
+                || 'https://generativelanguage.googleapis.com';
+            const normalizedEndpoint = baseEndpoint.replace(/\/$/, '');
+            const apiUrl = `${normalizedEndpoint}/v1beta/models/${ttsModel}:generateContent?key=${ttsApiKey}`;
+
+            this.abortController = new AbortController();
+            response = await apiFetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body,
+                signal: this.abortController.signal
+            });
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
-            throw new Error(`Gemini Multi-Speaker TTS Error: ${response.status} - ${errorText}`);
+            throw new Error(`Multi-Speaker TTS Error: ${response.status} - ${errorText.slice(0, 300)}`);
         }
 
         const data = await response.json();

@@ -478,11 +478,17 @@ export class TTSAgent {
                 errorMsg.includes('network') ||
                 errorMsg.includes('ECONNREFUSED') ||
                 errorMsg.includes('socket') ||
-                errorMsg.includes('No audio data');
+                errorMsg.includes('No audio data') ||
+                errorMsg.includes('503') ||
+                errorMsg.includes('NO_KEYS_AVAILABLE');
             if (isRetryableError && retryCount < MAX_RETRIES) {
-                radioMonitor.updateStatus('TTS', 'BUSY', `Network error, retrying...`);
+                // 503 错误需要更长的延迟
+                const delay = errorMsg.includes('503') || errorMsg.includes('NO_KEYS_AVAILABLE')
+                    ? RETRY_DELAY_MS * (retryCount + 1) * 3  // 503: 3秒、6秒、9秒
+                    : RETRY_DELAY_MS * (retryCount + 1);
+                radioMonitor.updateStatus('TTS', 'BUSY', `Retrying in ${delay / 1000}s...`);
                 this.releaseSlot();
-                await this.delay(RETRY_DELAY_MS * (retryCount + 1));
+                await this.delay(delay);
                 request.retryCount = retryCount + 1;
                 return this.processRequest(request);
             }

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Center Dot -->
+  <circle cx="256" cy="256" r="30" fill="white" />
+  
+  <!-- Inner Ring -->
+  <path d="M256,186 A70,70 0 0,1 256,326" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" />
+  <path d="M256,186 A70,70 0 0,0 256,326" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" opacity="0.3" />
+
+  <!-- Middle Ring -->
+  <path d="M256,106 A150,150 0 0,1 256,406" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" />
+  <path d="M256,106 A150,150 0 0,0 256,406" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" opacity="0.3" />
+
+  <!-- Outer Ring -->
+  <path d="M256,26 A230,230 0 0,1 256,486" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" />
+  <path d="M256,26 A230,230 0 0,0 256,486" fill="none" stroke="white" stroke-width="35" stroke-linecap="round" opacity="0.3" />
+</svg>

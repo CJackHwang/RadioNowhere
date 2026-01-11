@@ -61,7 +61,7 @@ export const AUDIO = {
 
 export const AGENT = {
     // Writer Agent
-    MAX_REACT_LOOPS: 10,              // ReAct 最大循环次数
+    MAX_REACT_LOOPS: 30,              // ReAct 最大循环次数
     MAX_PARSE_RETRIES: 3,             // 解析重试次数
     MAX_OUTPUT_TOKENS: 8192,          // AI 最大输出 token 数
 
@@ -70,7 +70,7 @@ export const AGENT = {
     HALFWAY_DELAY_MIN_MS: 5000,       // 预生成最小等待时间
 
     // TTS Agent
-    MAX_CONCURRENT_TTS: 5,            // TTS 最大并发数
+    MAX_CONCURRENT_TTS: 5,            // TTS 最大并发数（降低以避免 503）
     API_RETRY_COUNT: 3,               // API 重试次数
     API_RETRY_BASE_DELAY: 1000,       // API 重试基础延迟 (ms)
 };

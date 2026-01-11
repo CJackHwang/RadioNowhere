@@ -50,6 +50,40 @@ export default function Home() {
         <div className="text-neutral-600 text-[9px] md:text-[10px] font-mono max-w-xs text-center opacity-60">
           CAUTION: PROLONGED LISTENING MAY CAUSE TEMPORAL DISPLACEMENT SYMPTOMS.
         </div>
+
+        {/* Footer with Attribution */}
+        <footer className="mt-8 pt-8 border-t border-neutral-900/50 w-full max-w-lg flex flex-col items-center gap-2 text-[10px] text-neutral-600 font-mono">
+          <p>
+            Music API provided by{" "}
+            <a
+              href="https://music.gdstudio.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-neutral-400 transition-colors underline decoration-neutral-800"
+            >
+              GD音乐台
+            </a>
+          </p>
+          <div className="flex gap-4">
+            <a
+              href="https://github.com/CJackHwang/RadioNowhere"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-neutral-400 transition-colors"
+            >
+              Source Code
+            </a>
+            <span className="text-neutral-800">|</span>
+            <a
+              href="https://github.com/CJackHwang"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-neutral-400 transition-colors"
+            >
+              Author
+            </a>
+          </div>
+        </footer>
       </div>
     </main>
   );

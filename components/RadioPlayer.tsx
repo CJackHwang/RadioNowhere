@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     Play, Pause, Radio, Disc3, MessageCircle, Send,
     Volume2, VolumeX, ChevronDown, ChevronUp, Loader2,
-    SkipBack, SkipForward, Cpu, Music, Mic2,
+    Cpu, Music, Mic2,
     Layers, Zap, Clock, RotateCcw
 } from 'lucide-react';
 import { directorAgent } from '@/lib/agents/director_agent';
@@ -265,13 +265,7 @@ export default function RadioPlayer() {
         }
     }, [isPaused]);
 
-    const skipForward = useCallback(() => {
-        directorAgent.skipToNext();
-    }, []);
 
-    const skipBackward = useCallback(() => {
-        directorAgent.skipToPrevious();
-    }, []);
 
     const jumpToBlock = (index: number) => {
         directorAgent.skipToBlock(index);
@@ -425,9 +419,7 @@ export default function RadioPlayer() {
                     </motion.button>
 
                     <div className="flex-1 flex items-center justify-around">
-                        <PlayerActionBtn onClick={skipBackward} icon={<SkipBack size={20} />} label="Prev" disabled={!isConnected} />
                         <PlayerActionBtn onClick={togglePlay} active={isPaused} icon={isPaused ? <Play size={20} /> : <Pause size={20} />} label="Flow" disabled={!isConnected} />
-                        <PlayerActionBtn onClick={skipForward} icon={<SkipForward size={20} />} label="Next" disabled={!isConnected} />
                         <PlayerActionBtn onClick={() => setShowTimeline(!showTimeline)} active={showTimeline} icon={<Layers size={20} />} label="List" />
                         <div className="relative">
                             <PlayerActionBtn onClick={() => setShowMailbox(true)} icon={<MessageCircle size={20} />} label="Mail" />

@@ -16,7 +16,7 @@ export interface ShowRecord {
 
 export interface ShowHistory {
     recentShows: ShowRecord[];
-    recentSongs: Array<{ title: string; timestamp: number }>;  // 歌曲也带时间戳
+    recentSongs: Array<{ title: string; artist?: string; timestamp: number }>;  // 歌曲也带时间戳和歌手
     lastBreakTime: number;
 }
 
@@ -113,7 +113,7 @@ export function recordShow(concept: string, style: string, hosts: string[] = [])
 /**
  * 记录播放的歌曲
  */
-export function recordSong(songTitle: string): void {
+export function recordSong(songTitle: string, artist?: string): void {
     cleanupHistory();
 
     // 检查是否已存在（不区分大小写）
@@ -124,6 +124,7 @@ export function recordSong(songTitle: string): void {
     if (!exists) {
         history.recentSongs.push({
             title: songTitle,
+            artist,
             timestamp: Date.now()
         });
     }

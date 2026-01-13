@@ -21,9 +21,10 @@ import { radioMonitor } from '../radio_monitor';
 import { getSettings } from '../settings_store';
 import { saveSession } from '../session_store';
 import { mailQueue } from '../mail_queue';
-import { AUDIO, SHOW, TRANSITION, AGENT, MUSIC_SERVICE } from '../constants';
+import { AUDIO, SHOW, TRANSITION, AGENT } from '../constants';
 import { timeAnnouncementService } from '../time_announcement';
-import { recordShow } from '../show_history';
+import { recordShow, recordSong } from '../show_history';
+import { addProhibitedArtist } from '../music_diversity';
 
 // ================== Types ==================
 
@@ -823,6 +824,12 @@ export class DirectorAgent {
                         artist: track.artist.join(', '),
                         lyrics: cleanLyrics.slice(0, 500)
                     });
+                    
+                    // 记录歌曲和歌手到历史记录和禁止列表
+                    recordSong(track.name, track.artist.join(', '));
+                    for (const artistName of track.artist) {
+                        addProhibitedArtist(artistName);
+                    }
                 }
             }
 

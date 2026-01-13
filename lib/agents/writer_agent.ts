@@ -4,7 +4,7 @@
  */
 
 import { getSettings } from '../settings_store';
-import { RADIO, SHOW, AGENT } from '../constants';
+import { RADIO, AGENT } from '../constants';
 import {
     ShowTimeline,
     TimelineBlock,
@@ -15,14 +15,12 @@ import { getVoiceListForPrompt } from '../voice_provider';
 import {
     executeToolCall,
     getHistoryContext,
-    getToolsDescription,
-    WRITER_TOOLS,
-    ToolResult
+    getToolsDescription
 } from './writer_tools';
+import { getProhibitedArtists } from '../music_diversity';
 
 // ================== Constants ==================
 
-const MAX_PARSE_RETRIES = AGENT.MAX_PARSE_RETRIES;
 const MAX_REACT_LOOPS = AGENT.MAX_REACT_LOOPS;
 
 // ================== Radio Setting (Dynamic) ==================
@@ -171,7 +169,7 @@ export class WriterAgent {
                         radioMonitor.log('WRITER', 'Show submitted successfully!', 'info');
                         // 从工具调用参数中解析 timeline（不是从 result）
                         try {
-                            let timelineJson = toolCall.args.timeline_json;
+                            const timelineJson = toolCall.args.timeline_json;
 
                             // 如果 timeline_json 已经是对象，直接使用
                             if (typeof timelineJson === 'object' && timelineJson !== null) {
@@ -282,10 +280,59 @@ export class WriterAgent {
     private buildReActSystemPrompt(duration: number, theme?: string, userRequest?: string): string {
         const historyContext = getHistoryContext();
         const toolsDesc = getToolsDescription();
+        
+        // 获取禁止列表
+        const prohibitedArtists = getProhibitedArtists();
+        const prohibitionContext = prohibitedArtists.length > 0
+            ? `## ⚠️ 禁止使用的歌手（近24小时已使用）\n${prohibitedArtists.map(a => `- ${a}`).join('\n')}\n\n**注意：如果你选择了这些歌手，会导致节目被拒绝！**\n\n`
+            : '';
 
         return `${getRadioSetting()}
 
 ${this.getTimeContext()}
+
+## 🎵 **音乐多样性要求（核心）**
+
+你必须在这个节目中展现**真正的音乐多样性**。这不仅仅是避免重复，而是创意和品味的体现。
+
+### 多样性原则
+
+**1. 语境驱动的歌手选择**
+   根据节目时段、主题、情绪来选择歌手风格和文化背景。同一个主题可以有完全不同的音乐表达：
+   
+   - 破晓时刻 → 民谣/独立 (朴树、赵雷) OR 古典/器乐 OR 爵士/舒缓
+   - 午间陪伴 → 流行/轻松 (周杰伦) OR 乡村/民族 OR 电子/舒适
+   - 深夜沉思 → 摇滚/实验 (五月天) OR 爵士/蓝调 OR 民谣/古风
+
+**2. 禁止列表遵守（强制）**
+   你有整个人类音乐库可选，为什么要在24小时内重复同一个歌手？
+
+${prohibitionContext}
+
+**3. 跨越多个维度的多样化**
+   - 语言：中文 ↔ 英文 ↔ 日文 ↔ 其他
+   - 年代：经典 ↔ 80年代 ↔ 2000年代 ↔ 新兴（2020+）
+   - 流派：民谣 ↔ 摇滚 ↔ 爵士 ↔ 电子 ↔ 古典 ↔ 民族
+   - 地域：亚洲 ↔ 西方 ↔ 其他地域
+   - 知名度：超级巨星 ↔ 小众创作者
+
+**4. 避免的选歌模式**（如果出现会被拒绝）
+   ❌ 单节目中3次以上同一歌手
+   ❌ 连续选择同一风格歌手（民谣 → 民谣 → 民谣）
+   ❌ 只选"安全的热门艺人"
+   ❌ 忽视禁止列表
+   ❌ 完全无视节目主题乱选
+
+**5. 期望看到的多样性模式**
+   ✅ 节目1: 朴树(民谣/中文) + The Weeknd(电子/英文) + 五月天(摇滚/中文) + Norah Jones(爵士/英文)
+   ✅ 节目2: 薛之谦(流行/中文) + 新裤子(摇滚/中文) + 李荣浩(Rnb/中文) + Bon Iver(民谣/英文)
+   ✅ 节目3: 宇宙人(独立/中文) + 莫西子诗(民族/中文) + Daughter(暗民谣/英文) + 小米粒(古风/中文)
+
+### 多样性检查机制
+
+生成节目后，你必须调用 \`check_artist_diversity\` 工具来自我评估。
+- **得分≥70分**：✓ 通过，节目保留
+- **得分<70分**：✗ 失败，需要重新选择歌手
 
 ## 你的任务
 生成一段约 ${duration} 秒的电台节目。
@@ -303,7 +350,8 @@ ${toolsDesc}
 1. 先用 check_duplicate 确认你的节目概念不与近期雷同
 2. 用 search_music 搜索合适的歌曲
 3. (可选) 用 get_lyrics 获取歌词
-4. 编写完整脚本后，用 submit_show 提交
+4. 编写完整脚本后，**必须**用 check_artist_diversity 检查多样性
+5. 多样性达标后，用 submit_show 提交
 
 ## ⚠️ 重要：节目结构要求
 - 每个节目**必须**以一首过渡音乐结尾（作为节目之间的衔接）
@@ -359,7 +407,7 @@ ${getVoiceListForPrompt()}
         }
 
         let url: string;
-        let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         let body: unknown;
 
         if (settings.apiType === 'vertexai') {
@@ -471,7 +519,7 @@ ${getVoiceListForPrompt()}
         if (toolIndex === -1) return null;
 
         // 找到包含 tool 的 JSON 对象的起始位置
-        let startIndex = response.lastIndexOf('{', toolIndex);
+        const startIndex = response.lastIndexOf('{', toolIndex);
         if (startIndex === -1) return null;
 
         // 使用括号计数找到完整的 JSON 对象
@@ -723,10 +771,10 @@ ${getVoiceListForPrompt()}
         radioMonitor.updateStatus('WRITER', 'BUSY', 'Calling AI API...');
 
         let url: string;
-        let headers: Record<string, string> = { 'Content-Type': 'application/json' };
         let body: unknown;
 
         if (settings.apiType === 'vertexai') {
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
             // Vertex AI 格式
             const isGcpApiKey = settings.apiKey.startsWith('AIza');
             url = `https://${settings.gcpLocation}-aiplatform.googleapis.com/v1/projects/${settings.gcpProject}/locations/${settings.gcpLocation}/publishers/google/models/${settings.modelName}:generateContent`;
@@ -870,7 +918,7 @@ ${getVoiceListForPrompt()}
         // 策略3: 处理 tool call 格式 {"tool": "submit_show", "args": {"timeline_json": "..."}}
         if (parsed.tool === 'submit_show' && parsed.args?.timeline_json) {
             console.log('[Writer] Detected tool call format, extracting timeline_json');
-            let timelineJson = parsed.args.timeline_json;
+            const timelineJson = parsed.args.timeline_json;
 
             // 可能是字符串，需要再次解析
             if (typeof timelineJson === 'string') {
@@ -978,7 +1026,7 @@ ${getVoiceListForPrompt()}
      * 规范化 endpoint
      */
     private normalizeEndpoint(endpoint: string): string {
-        let base = endpoint?.trim() || 'https://generativelanguage.googleapis.com';
+        const base = endpoint?.trim() || 'https://generativelanguage.googleapis.com';
         let url = base.replace(/\/$/, '');
         if (!url.endsWith('/v1') && !url.endsWith('/v1beta')) {
             url = `${url}/v1beta`; // 默认使用 v1beta 以支持最新模型

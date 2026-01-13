@@ -163,7 +163,6 @@ export async function callGenerativeAI(options: GenerativeAIOptions): Promise<st
     const { prompt, temperature = 0.7, maxOutputTokens = 2048 } = options;
 
     let url: string;
-    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
     let body: unknown;
 
     if (settings.apiType === 'vertexai') {

@@ -680,7 +680,7 @@ ${castDescription}
       "id": "music-1",
       "action": "play",
       "search": "歌名或歌手",
-      "duration": 30,
+      "duration": 240,
       "intro": {
         "speaker": "host2",
         "text": "接下来这首歌...",
@@ -732,8 +732,9 @@ ${castDescription}
 ## 内容要求
 1. **对话要丰富**：主持人之间的对话要自然、有来有往，每个 talk 块至少 3-5 句台词
 2. **音乐时长**：
-   - 可以让音乐完整播放（不设 duration，或 duration: 180）
-   - 也可以在播放过程中主持人开始说话（通过 backgroundMusic.action: "continue" + volume: 0.15）
+    - 可以让音乐完整播放（不设 duration，或 duration: 240-360 秒，即 4-6 分钟）
+    - 优先让音乐完整播放，只有在特殊场景（如介绍多首歌曲）时才缩短时长
+    - 也可以在播放过程中主持人开始说话（通过 backgroundMusic.action: "continue" + volume: 0.15）
 3. **过渡自然**：音乐 fade_out 后主持人要有承接的话语
 4. **内容深入**：话题展开要详细，不要蜻蜓点水
 5. **情感丰富**：台词要有感情起伏，设置合适的 mood 和 voiceStyle

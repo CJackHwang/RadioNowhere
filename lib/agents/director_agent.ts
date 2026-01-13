@@ -1298,6 +1298,7 @@ export class DirectorAgent {
                         await this.delay(block.duration * 1000);
                         await audioMixer.fadeMusic(0, 2000);
                         audioMixer.stopMusic();
+                        audioMixer.setMusicVolume(AUDIO.MUSIC_DEFAULT_VOLUME);  // 重置音量到默认值
                     }
 
                     return;
@@ -1348,6 +1349,7 @@ export class DirectorAgent {
                 await this.delay(block.duration * 1000);
                 await audioMixer.fadeMusic(0, 2000);
                 audioMixer.stopMusic();
+                audioMixer.setMusicVolume(AUDIO.MUSIC_DEFAULT_VOLUME);  // 重置音量到默认值
             }
         } catch (err) {
             radioMonitor.log('DIRECTOR', `executeMusicBlock error: ${err}`, 'error');

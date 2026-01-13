@@ -151,6 +151,7 @@ export class DirectorAgent {
                     // 现在才停止 warmup，淡出过渡（1.5秒）
                     await audioMixer.fadeMusic(0, 1500);
                     audioMixer.stopAll();
+                    audioMixer.setMusicVolume(AUDIO.MUSIC_DEFAULT_VOLUME);  // 重置音量到默认值
                     await this.delay(300);
 
                     // 后台继续准备其他块（不阻塞播放开始）
@@ -179,6 +180,7 @@ export class DirectorAgent {
                     radioMonitor.log('DIRECTOR', 'Waiting for timeline generation...', 'warn');
                     await audioMixer.fadeMusic(0, 1000);
                     audioMixer.stopMusic();
+                    audioMixer.setMusicVolume(AUDIO.MUSIC_DEFAULT_VOLUME);  // 重置音量到默认值
 
                     const pendingMail = mailQueue.getNext();
                     currentTimeline = await this.generateMainTimeline(undefined, pendingMail?.content);

@@ -86,13 +86,17 @@ export class AudioMixer {
     /**
      * 播放音乐（带超时）
      */
-    async playMusic(url: string, options?: { fadeIn?: number; format?: string; html5?: boolean }): Promise<void> {
+    async playMusic(
+        url: string,
+        options?: { fadeIn?: number; format?: string; html5?: boolean }
+    ): Promise<{ success: boolean; error?: string }> {
         const LOAD_TIMEOUT = AUDIO.MUSIC_LOAD_TIMEOUT;
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             // 停止当前音乐
             if (this.musicHowl) {
                 this.musicHowl.unload();
+                this.musicHowl = null;
             }
 
             const startVolume = options?.fadeIn ? 0 : this.musicVolume;
@@ -106,48 +110,59 @@ export class AudioMixer {
                 }
             };
 
+            const finish = (result: { success: boolean; error?: string }) => {
+                if (resolved) return;
+                resolved = true;
+                cleanup();
+                resolve(result);
+            };
+
             // 设置超时
             timeoutId = setTimeout(() => {
-                if (!resolved) {
-                    resolved = true;
-                    console.warn('[AudioMixer] Music load timeout:', url);
-                    if (this.musicHowl) {
-                        this.musicHowl.unload();
-                        this.musicHowl = null;
-                    }
-                    resolve(); // 超时时也 resolve，让节目继续
+                console.warn('[AudioMixer] Music load timeout:', url);
+                if (this.musicHowl) {
+                    this.musicHowl.unload();
+                    this.musicHowl = null;
                 }
+                finish({ success: false, error: 'timeout' });
             }, LOAD_TIMEOUT);
 
             this.musicHowl = new Howl({
                 src: [url],
                 format: options?.format ? [options.format] : undefined, // 显式指定格式（用于 Blob URL）
-                html5: options?.html5 ?? false,  // 默认为 false (Web Audio API)，但允许强制使用 HTML5 Audio (Blob/长音频)
+                html5: options?.html5 ?? false, // 默认为 false (Web Audio API)，但允许强制使用 HTML5 Audio (Blob/长音频)
                 preload: true,
                 volume: startVolume,
                 onload: () => {
                     if (resolved) return;
-                    resolved = true;
-                    cleanup();
                     console.log('[AudioMixer] Music fully loaded, starting playback');
-                    if (options?.fadeIn) {
-                        this.fadeMusic(this.musicVolume, options.fadeIn);
+
+                    try {
+                        this.musicHowl?.play();
+                        if (options?.fadeIn) {
+                            void this.fadeMusic(this.musicVolume, options.fadeIn);
+                        }
+                    } catch (e) {
+                        console.error('[AudioMixer] Music play start error:', e, url);
                     }
-                    resolve();
+
+                    finish({ success: true });
                 },
                 onloaderror: (_, error) => {
-                    if (resolved) return;
-                    resolved = true;
-                    cleanup();
                     console.error('[AudioMixer] Music load error:', error, url);
-                    resolve(); // 错误时也 resolve，让节目继续
+                    if (this.musicHowl) {
+                        this.musicHowl.unload();
+                        this.musicHowl = null;
+                    }
+                    finish({ success: false, error: String(error) });
                 },
                 onend: () => {
                     // 音乐播放结束
                 }
             });
 
-            this.musicHowl.play();
+            // 确保开始加载（并在 onload 中触发播放）
+            this.musicHowl.load();
         });
     }
 
@@ -430,7 +445,12 @@ export class AudioMixer {
                 return false;
             }
 
-            await this.playMusic(url, { fadeIn: 1000 });
+            const result = await this.playMusic(url, { fadeIn: 1000 });
+            if (!result.success) {
+                console.warn('[AudioMixer] playMusicFromSearch playback failed:', result.error);
+                return false;
+            }
+
             console.log('[AudioMixer] Playing:', track.name, '-', track.artist.join(', '));
             return true;
         } catch (error) {

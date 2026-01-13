@@ -47,7 +47,7 @@ export class DirectorAgent {
     private musicCache: Map<string, IGDMusicTrack> = new Map();
     private musicUrlCache: Map<string, { url: string; cachedAt: number }> = new Map(); // 预加载的音乐 URL + 缓存时间
     private musicDataCache: Map<string, Blob> = new Map(); // 下载的音乐文件缓存
-    private readonly MUSIC_URL_TTL_MS = 10 * 60 * 1000; // URL 有效期：10 分钟
+    private readonly MUSIC_URL_TTL_MS = 20 * 60 * 1000; // URL 有效期：20 分钟
 
     // 双缓冲：下一段时间线预生成
     private nextTimeline: ShowTimeline | null = null;
@@ -221,7 +221,11 @@ export class DirectorAgent {
             if (block.type === 'talk') {
                 preparePromises.push(this.prepareTalkBlock(block));
             } else if (block.type === 'music') {
-                preparePromises.push(this.prepareMusicBlock(block));
+                const musicBlock = block as MusicBlock;
+                preparePromises.push((async () => {
+                    await this.renewMusicUrlIfNeeded(musicBlock);
+                    await this.prepareMusicBlock(musicBlock);
+                })());
             }
         }
 
@@ -289,7 +293,12 @@ export class DirectorAgent {
 
                 // 播放 30-45 秒过渡音乐
                 const transitionDuration = TRANSITION.MIN_DURATION_MS + Math.random() * (TRANSITION.MAX_DURATION_MS - TRANSITION.MIN_DURATION_MS);
-                audioMixer.playMusic(url, { fadeIn: TRANSITION.FADE_IN_MS });
+                const playResult = await audioMixer.playMusic(url, { fadeIn: TRANSITION.FADE_IN_MS });
+                if (!playResult.success) {
+                    radioMonitor.log('DIRECTOR', `Transition music playback failed: ${playResult.error}`, 'warn');
+                    await this.delay(3000);
+                    return;
+                }
 
                 // 等待过渡时长
                 await this.delay(transitionDuration);
@@ -729,6 +738,28 @@ export class DirectorAgent {
         await Promise.all(ttsPromises);
     }
 
+    private async renewMusicUrlIfNeeded(block: MusicBlock): Promise<void> {
+        const cached = this.musicUrlCache.get(block.search);
+        if (!cached) return;
+
+        const age = Date.now() - cached.cachedAt;
+        const remainingMs = this.MUSIC_URL_TTL_MS - age;
+        if (remainingMs >= 5 * 60 * 1000) return;
+
+        const track = this.musicCache.get(block.search);
+        if (!track) return;
+
+        try {
+            const newUrl = await getMusicUrl(track.id, 320, track.source);
+            if (newUrl) {
+                this.musicUrlCache.set(block.search, { url: newUrl, cachedAt: Date.now() });
+                radioMonitor.log('DIRECTOR', `Music URL renewed: ${block.search}`, 'info');
+            }
+        } catch (err) {
+            radioMonitor.log('DIRECTOR', `Failed to renew URL: ${err}`, 'warn');
+        }
+    }
+
     /**
      * 预处理音乐块 (获取音乐URL、下载并获取歌词)
      */
@@ -741,18 +772,8 @@ export class DirectorAgent {
         }
 
         // 2. 检查是否有 URL 缓存但未下载（例如下载失败的情况）
-        const cachedUrl = this.musicUrlCache.get(block.search);
+        let cachedUrl = this.musicUrlCache.get(block.search);
         let urlToDownload = cachedUrl?.url;
-
-        // 如果 URL 过期，清除
-        if (cachedUrl) {
-            const age = Date.now() - cachedUrl.cachedAt;
-            if (age >= this.MUSIC_URL_TTL_MS) {
-                this.musicUrlCache.delete(block.search);
-                urlToDownload = undefined;
-                radioMonitor.log('DIRECTOR', `Music URL expired, re-fetching...`, 'info');
-            }
-        }
 
         try {
             if (!this.musicCache.has(block.search)) {
@@ -767,6 +788,21 @@ export class DirectorAgent {
             }
 
             const track = this.musicCache.get(block.search)!;
+
+            // 预加载/预生成时：如果 URL 即将过期，提前续期，避免播放/下载过程中失效
+            await this.renewMusicUrlIfNeeded(block);
+            cachedUrl = this.musicUrlCache.get(block.search);
+            urlToDownload = cachedUrl?.url;
+
+            // 如果 URL 已过期，清除
+            if (cachedUrl) {
+                const age = Date.now() - cachedUrl.cachedAt;
+                if (age >= this.MUSIC_URL_TTL_MS) {
+                    this.musicUrlCache.delete(block.search);
+                    urlToDownload = undefined;
+                    radioMonitor.log('DIRECTOR', `Music URL expired, re-fetching...`, 'info');
+                }
+            }
 
             // 获取 URL (如果没有有效缓存)
             if (!urlToDownload) {
@@ -790,16 +826,31 @@ export class DirectorAgent {
                 }
             }
 
-            // 执行下载
+            // 执行下载 - 增加指数退避重试
             if (urlToDownload) {
-                radioMonitor.log('DIRECTOR', `Downloading music: ${track.name}...`, 'info');
-                const response = await fetch(urlToDownload);
-                if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+                const MAX_RETRIES = 3;
+                for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                    try {
+                        radioMonitor.log('DIRECTOR', `Downloading music (attempt ${attempt}/${MAX_RETRIES}): ${track.name}...`, 'info');
 
-                const blob = await response.blob();
-                this.musicDataCache.set(block.search, blob);
+                        const response = await fetch(urlToDownload);
+                        if (!response.ok) throw new Error(`Download failed: ${response.status}`);
 
-                radioMonitor.log('DIRECTOR', `✓ Music downloaded: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+                        const blob = await response.blob();
+                        this.musicDataCache.set(block.search, blob);
+
+                        radioMonitor.log('DIRECTOR', `✓ Music downloaded: ${track.name} (${(blob.size / 1024 / 1024).toFixed(2)} MB)`, 'info');
+                        break; // 成功，退出重试
+                    } catch (err) {
+                        if (attempt < MAX_RETRIES) {
+                            const delayMs = 1000 * Math.pow(2, attempt - 1); // 1s, 2s, 4s
+                            radioMonitor.log('DIRECTOR', `Download failed (attempt ${attempt}/${MAX_RETRIES}): ${block.search} - ${err}. Retry in ${delayMs}ms...`, 'warn');
+                            await this.delay(delayMs);
+                        } else {
+                            radioMonitor.log('DIRECTOR', `✗ All retries failed: ${block.search} - ${err}`, 'error');
+                        }
+                    }
+                }
             } else {
                 radioMonitor.log('DIRECTOR', `✗ Failed to get URL for: ${track.name}`, 'warn');
             }
@@ -1106,105 +1157,105 @@ export class DirectorAgent {
      * 执行音乐块
      */
     private async executeMusicBlock(block: MusicBlock): Promise<void> {
-        // 1. 先生成介绍词 TTS (但不播放)
-        let introAudio: ArrayBuffer | null = null;
-        if (block.intro) {
-            try {
-                const result = await ttsAgent.generateSpeech(
-                    block.intro.text,
-                    block.intro.speaker,
-                    { mood: block.intro.mood }
-                );
-                if (result.success && result.audioData) {
-                    introAudio = result.audioData;
-                }
-            } catch (e) {
-                console.warn('[Director] Intro TTS generation failed:', e);
-            }
-        }
-
-        // 优先使用预加载的媒体（下载 > URL）
-        let url: string | undefined;
-        let blobUrl: string | undefined;
-        let track = this.musicCache.get(block.search);
-
-        // 1. 检查下载缓存
-        if (this.musicDataCache.has(block.search)) {
-            const blob = this.musicDataCache.get(block.search)!;
-            blobUrl = URL.createObjectURL(blob);
-            url = blobUrl;
-            radioMonitor.log('DIRECTOR', `Playing downloaded music: ${block.search}`, 'info');
-        }
-        // 2. 检查 URL 缓存
-        else {
-            const cachedItem = this.musicUrlCache.get(block.search);
-            if (cachedItem) {
-                const age = Date.now() - cachedItem.cachedAt;
-                if (age < this.MUSIC_URL_TTL_MS) {
-                    url = cachedItem.url;
-                } else {
-                    radioMonitor.log('DIRECTOR', `Music URL expired during playback: ${block.search}`, 'info');
+        try {
+            // 1. 先生成介绍词 TTS (但不播放)
+            let introAudio: ArrayBuffer | null = null;
+            if (block.intro) {
+                try {
+                    const result = await ttsAgent.generateSpeech(
+                        block.intro.text,
+                        block.intro.speaker,
+                        { mood: block.intro.mood }
+                    );
+                    if (result.success && result.audioData) {
+                        introAudio = result.audioData;
+                    }
+                } catch (e) {
+                    console.warn('[Director] Intro TTS generation failed:', e);
                 }
             }
-        }
 
-        // 如果没有缓存或已过期，实时获取
-        if (!track || !url) {
-            const tracks = await searchMusic(block.search);
-            if (tracks.length > 0) {
+            const playIntroOverlay = async () => {
+                if (introAudio) {
+                    await audioMixer.overlayVoice(introAudio);
+                }
+            };
+
+            // 2. 优先播放已下载的 Blob（最稳定，不受 URL TTL 影响）
+            const cachedData = this.musicDataCache.get(block.search);
+            if (cachedData) {
+                const blobUrl = URL.createObjectURL(cachedData);
+                radioMonitor.log('DIRECTOR', `Playing cached music (Blob): ${block.search}`, 'info');
+
+                const result = await audioMixer.playMusic(blobUrl, {
+                    fadeIn: block.fadeIn,
+                    format: 'mp3',
+                    html5: true
+                });
+
+                if (result.success) {
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+
+                    await playIntroOverlay();
+                    globalState.addTrack(block.search);
+
+                    if (block.duration) {
+                        await this.delay(block.duration * 1000);
+                        await audioMixer.fadeMusic(0, 2000);
+                        audioMixer.stopMusic();
+                    }
+
+                    return;
+                }
+
+                radioMonitor.log('DIRECTOR', `Cached music playback failed: ${block.search} - ${result.error}`, 'error');
+                URL.revokeObjectURL(blobUrl);
+                radioMonitor.log('DIRECTOR', `Fallback to live search: ${block.search}`, 'warn');
+            } else {
+                radioMonitor.log('DIRECTOR', `Music not cached, fallback to live search: ${block.search}`, 'warn');
+            }
+
+            // 3. 降级：实时搜索/刷新 URL 并播放
+            let track = this.musicCache.get(block.search);
+            if (!track) {
+                radioMonitor.log('DIRECTOR', `Searching music (fallback): ${block.search}`, 'info');
+                const tracks = await searchMusic(block.search);
+                if (tracks.length === 0) {
+                    radioMonitor.log('DIRECTOR', `Music not found: ${block.search}`, 'warn');
+                    return;
+                }
                 track = tracks[0];
-                this.musicCache.set(block.search, track); // 确保 track 被缓存
-                url = await getMusicUrl(track.id) || undefined;
+                this.musicCache.set(block.search, track);
             }
-        }
 
-        if (url && track) {
-            radioMonitor.log('DIRECTOR', `Playing music: ${track.name}`, 'info');
+            const url = await getMusicUrl(track.id, 320, track.source);
+            if (!url) {
+                radioMonitor.log('DIRECTOR', `Failed to get music URL (fallback): ${block.search}`, 'error');
+                return;
+            }
 
-            // 2. 开始播放音乐 (Blob 使用 HTML5 Audio 以提高大文件解码性能)
-            await audioMixer.playMusic(url, {
-                fadeIn: block.fadeIn,
-                format: blobUrl ? 'mp3' : undefined, // Blob URL 需要显式指定格式
-                html5: blobUrl ? true : false    // Blob URL 强制使用 HTML5 Audio，避免 Web Audio 解码超时
+            this.musicUrlCache.set(block.search, { url, cachedAt: Date.now() });
+            radioMonitor.log('DIRECTOR', `Playing music (live): ${track.name}`, 'info');
+
+            const playResult = await audioMixer.playMusic(url, {
+                fadeIn: block.fadeIn ?? 2000
             });
 
-            // 3. 如果有介绍词，叠加播放 (Overlay)
-            if (introAudio) {
-                await audioMixer.overlayVoice(introAudio);
+            if (!playResult.success) {
+                radioMonitor.log('DIRECTOR', `Live music playback failed: ${block.search} - ${playResult.error}`, 'error');
+                return;
             }
 
-            // 如果使用 Blob URL，延迟释放以确保 Howler 加载完成
-            // 注意：因为 html5: true，Howler 会一直引用这个 URL，直到 unload
-            // 所以我们可能需要更晚释放，或者依赖 stopShow / stopMusic 的清理
-            // 但 Howler 文档建议 revokeObjectURL。
-            // 实际上，只要 Howler 还在播放，这个 URL 就必须有效。
-            // 这是一个棘手的问题。如果我们立即 revoke，hmtl5 audio src 可能会失效？
-            // 经查，audio.src = url 后，如果 revoke，可能会中断流? 不一定，取决于浏览器实现。
-            // 最安全的方式：不在这里 revoke，而是让它在 musicDataCache 清理时失效（虽然 Blob URL 需要手动 revoke）。
-            // 考虑到这是一个长期运行的电台，Blob URL 泄漏是问题。
-            // 妥协方案：设一个足够长的 timeout (比如 10分钟)，或者不做处理，由 DirectorAgent 在适当时机清理可以做的更复杂。
-            // 但为了简单，暂时保持 30秒延迟释放，如果中断了就中断了吧，反正大部分介绍词都说完。
-            // 且慢，HTML5 Audio 必须保持 src 有效？
-            // URL.revokeObjectURL: "revoke the URL... any attempt to use the URL... will fail."
-            // 如果 audio 元素已经加载了，可能没事。如果还在缓冲，就会失败。
-            // 既然是本地 Blob，加载非常快。30秒应该足够。
-            if (blobUrl) {
-                setTimeout(() => URL.revokeObjectURL(blobUrl!), 30000);
-            }
-
-            // 记录到 globalState
+            await playIntroOverlay();
             globalState.addTrack(block.search);
 
-            // 记录歌词
-            // ... (省略，因为 executeMusicBlock 改动不涉及歌词逻辑，原代码这里也没有显式记录歌词，是在 prepare 里记录的)
-            // 如果指定了时长，等待后淡出
             if (block.duration) {
                 await this.delay(block.duration * 1000);
                 await audioMixer.fadeMusic(0, 2000);
                 audioMixer.stopMusic();
             }
-        } else {
-            radioMonitor.log('DIRECTOR', `Music not found: ${block.search}`, 'warn');
+        } catch (err) {
+            radioMonitor.log('DIRECTOR', `executeMusicBlock error: ${err}`, 'error');
         }
     }
 

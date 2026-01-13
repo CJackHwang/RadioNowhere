@@ -1,15 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 允许所有常见局域网网段访问
-  allowedDevOrigins: [
-    '*.local',
-    '*.local:3000',
-    '192.168.*.*',
-    '192.168.*.*:3000',
-    '10.*.*.*',
-    '172.16.*.*',
-  ],
+  // 配置为空或添加其他有效的 Next.js 选项
 };
 
 export default nextConfig;

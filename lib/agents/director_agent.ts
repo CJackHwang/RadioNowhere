@@ -131,14 +131,32 @@ export class DirectorAgent {
                     isFirstRun = false;
 
                     // 首次：同时启动预热播放和主节目生成
-                    const warmupPromise = this.playWarmupContent();
+                    this.playWarmupContent();
                     const timelinePromise = this.generateMainTimeline(theme, userRequest);
 
                     currentTimeline = await timelinePromise;
 
-                    // 停止预热，切换到主节目
+                    // 设置并预处理当前时间线
+                    await this.setupTimeline(currentTimeline);
+                    radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
+
+                    const preloadCount = getSettings().preloadBlockCount;
+
+                    // 异步启动准备（不阻塞）
+                    const preparePromise = this.prepareBlocks(0, preloadCount);
+
+                    // 等待第一个块准备好（最多15秒）
+                    await this.waitForFirstBlockReady(currentTimeline, 15000);
+
+                    // 现在才停止 warmup，淡出过渡（1.5秒）
+                    await audioMixer.fadeMusic(0, 1500);
                     audioMixer.stopAll();
                     await this.delay(300);
+
+                    // 后台继续准备其他块（不阻塞播放开始）
+                    preparePromise.catch(err => {
+                        radioMonitor.log('DIRECTOR', `Background prepare warning: ${err}`, 'warn');
+                    });
                 } else if (nextTimeline && nextTimelineReady) {
                     // 使用预先生成好的下一期节目
                     radioMonitor.log('DIRECTOR', 'Using pre-generated timeline', 'info');
@@ -150,6 +168,12 @@ export class DirectorAgent {
                     radioMonitor.log('DIRECTOR', 'Playing transition music...', 'info');
                     await this.playTransitionMusic();
                     await this.delay(500);
+
+                    // 设置并预处理当前时间线
+                    await this.setupTimeline(currentTimeline);
+                    radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
+                    const preloadCount = getSettings().preloadBlockCount;
+                    await this.prepareBlocks(0, preloadCount);
                 } else {
                     // 备选：如果预生成没准备好，等待生成
                     radioMonitor.log('DIRECTOR', 'Waiting for timeline generation...', 'warn');
@@ -158,13 +182,13 @@ export class DirectorAgent {
 
                     const pendingMail = mailQueue.getNext();
                     currentTimeline = await this.generateMainTimeline(undefined, pendingMail?.content);
-                }
 
-                // 设置并预处理当前时间线
-                await this.setupTimeline(currentTimeline);
-                radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
-                const preloadCount = getSettings().preloadBlockCount;
-                await this.prepareBlocks(0, preloadCount);
+                    // 设置并预处理当前时间线
+                    await this.setupTimeline(currentTimeline);
+                    radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
+                    const preloadCount = getSettings().preloadBlockCount;
+                    await this.prepareBlocks(0, preloadCount);
+                }
 
                 // 启动后台预加载 worker（持续保持缓冲区满）
                 this.startPreloadWorker();
@@ -173,7 +197,7 @@ export class DirectorAgent {
                 const executePromise = this.executeTimeline(sessionId);
 
                 // 在当前节目播放时，并行生成和准备下一期
-                const prepareNextPromise = (async () => {
+                (async () => {
                     // 等待当前节目播放到一半时开始准备下一期
                     const halfwayDelay = Math.max(AGENT.HALFWAY_DELAY_MIN_MS, (currentTimeline.blocks.length * 3000) / 2);
                     await this.delay(halfwayDelay);
@@ -242,7 +266,7 @@ export class DirectorAgent {
 
         try {
             // 1. 先开始播放背景音乐
-            const musicPromise = this.searchAndPlayIntroMusic();
+            this.searchAndPlayIntroMusic();
 
             // 2. 同时生成简短的开场问候语
             const greeting = this.getQuickGreeting();
@@ -510,6 +534,28 @@ export class DirectorAgent {
     }
 
     /**
+     * 等待第一个块准备好（带超时保护）
+     */
+    private async waitForFirstBlockReady(timeline: ShowTimeline, timeoutMs: number): Promise<void> {
+        if (!timeline.blocks.length) return;
+
+        const startTime = Date.now();
+        const firstBlock = timeline.blocks[0];
+
+        while (Date.now() - startTime < timeoutMs) {
+            if (this.isBlockPrepared(firstBlock)) {
+                radioMonitor.log('DIRECTOR', 'First block ready, starting playback', 'info');
+                return;
+            }
+
+            await this.delay(200);
+        }
+
+        // 超时也继续，降级播放
+        radioMonitor.log('DIRECTOR', 'First block not ready after timeout, starting anyway', 'warn');
+    }
+
+    /**
      * 计算已准备好的块数量
      */
     private countPreparedBlocks(startIndex: number, endIndex: number): number {
@@ -637,6 +683,7 @@ export class DirectorAgent {
 
     /**
      * 预处理块（生成 TTS 和获取音乐）
+     * 流式准备：第一个块优先等待，其他块异步准备
      */
     private async prepareBlocks(startIndex: number, count: number): Promise<void> {
         if (!this.context) return;
@@ -644,21 +691,40 @@ export class DirectorAgent {
         const { timeline } = this.context;
         const endIndex = Math.min(startIndex + count, timeline.blocks.length);
 
+        // 启动所有准备任务（异步，不阻塞）
         const preparePromises: Promise<void>[] = [];
 
         for (let i = startIndex; i < endIndex; i++) {
             const block = timeline.blocks[i];
 
             if (block.type === 'talk') {
-                // 预生成所有台词的 TTS
-                preparePromises.push(this.prepareTalkBlock(block));
+                // 异步准备，错误不阻塞
+                preparePromises.push(
+                    this.prepareTalkBlock(block).catch(err => {
+                        radioMonitor.log('DIRECTOR', `Talk block ${i} prepare failed: ${err}`, 'warn');
+                    })
+                );
             } else if (block.type === 'music') {
-                // 预搜索音乐
-                preparePromises.push(this.prepareMusicBlock(block));
+                preparePromises.push(
+                    this.prepareMusicBlock(block).catch(err => {
+                        radioMonitor.log('DIRECTOR', `Music block ${i} prepare failed: ${err}`, 'warn');
+                    })
+                );
             }
         }
 
-        await Promise.all(preparePromises);
+        // 只等待第一个块
+        const firstBlock = timeline.blocks[startIndex];
+        if (firstBlock && !this.isBlockPrepared(firstBlock)) {
+            if (firstBlock.type === 'talk') {
+                await this.prepareTalkBlock(firstBlock);
+            } else if (firstBlock.type === 'music') {
+                await this.prepareMusicBlock(firstBlock);
+            }
+        }
+
+        // 其他块在后台继续准备（由 preloadWorker 持续接管）
+        // 不阻塞播放开始
     }
 
     /**
@@ -915,6 +981,26 @@ export class DirectorAgent {
             if (!this.context) break;
 
             const block = timeline.blocks[this.context.currentBlockIndex];
+
+            // 🔥 新增：播放前确认块已准备好
+            if (!this.isBlockPrepared(block)) {
+                radioMonitor.log('DIRECTOR', `Block ${this.context.currentBlockIndex} not ready, waiting...`, 'warn');
+
+                const maxWait = 10000; // 最多等10秒
+                const startWait = Date.now();
+
+                while (!this.isBlockPrepared(block) && Date.now() - startWait < maxWait) {
+                    await this.delay(500);
+                }
+
+                if (!this.isBlockPrepared(block)) {
+                    radioMonitor.log('DIRECTOR', `Block ${this.context.currentBlockIndex} timeout, skipping`, 'error');
+                    if (!this.skipRequested) {
+                        this.context.currentBlockIndex++;
+                    }
+                    continue;
+                }
+            }
 
             // 通知块开始
             this.context.onBlockStart?.(block, this.context.currentBlockIndex);

@@ -1,0 +1,729 @@
+{
+  "migration_plan": {
+    "project_name": "RadioNowhere",
+    "migration_type": "Feature-Sliced Design (FSD) Restructuring",
+    "created_date": "2024-12-23",
+    "total_files": 23,
+    "phases": 6
+  },
+  "file_mappings": {
+    "from_lib_directory": {
+      "types": [
+        {
+          "original_path": "lib/types/radio_types.ts",
+          "new_path": "shared/types/radio-core.ts",
+          "category": "shared",
+          "description": "核心类型定义",
+          "dependencies": ["entities/*", "features/*"],
+          "priority": "high",
+          "phase": 2
+        }
+      ],
+      "constants": [
+        {
+          "original_path": "lib/constants.ts",
+          "new_path": "shared/utils/constants.ts",
+          "category": "shared",
+          "description": "全局常量配置",
+          "dependencies": ["features/*", "shared/*"],
+          "priority": "high",
+          "phase": 3
+        }
+      ],
+      "services": [
+        {
+          "original_path": "lib/ai_service.ts",
+          "new_path": "shared/services/ai-service/index.ts",
+          "category": "shared",
+          "description": "AI 服务抽象层",
+          "dependencies": ["features/content", "features/agents"],
+          "priority": "high",
+          "phase": 3
+        },
+        {
+          "original_path": "lib/audio_mixer.ts",
+          "new_path": "shared/services/audio-service/mixer.ts",
+          "category": "shared",
+          "description": "音频混合器服务",
+          "dependencies": ["features/playback", "widgets/radio-player"],
+          "priority": "high",
+          "phase": 3
+        },
+        {
+          "original_path": "lib/gdmusic_service.ts",
+          "new_path": "features/music-search/lib/gd-music-service.ts",
+          "category": "music-search",
+          "description": "GD 音乐服务",
+          "dependencies": ["features/playback", "shared/services/cache-service"],
+          "priority": "high",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/lrc_parser.ts",
+          "new_path": "features/music-search/lib/lyrics-parser.ts",
+          "category": "music-search",
+          "description": "歌词解析器",
+          "dependencies": ["features/music-search"],
+          "priority": "medium",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/music_diversity.ts",
+          "new_path": "features/music-search/lib/diversity-manager.ts",
+          "category": "music-search",
+          "description": "音乐多样性管理",
+          "dependencies": ["features/music-search"],
+          "priority": "medium",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/voice_provider.ts",
+          "new_path": "features/tts/lib/voice-provider.ts",
+          "category": "tts",
+          "description": "语音提供者",
+          "dependencies": ["features/tts"],
+          "priority": "medium",
+          "phase": 4
+        }
+      ],
+      "stores": [
+        {
+          "original_path": "lib/global_state.ts",
+          "new_path": "shared/stores/global-state/index.ts",
+          "category": "shared",
+          "description": "全局状态管理",
+          "dependencies": ["features/*", "shared/*"],
+          "priority": "high",
+          "phase": 3
+        },
+        {
+          "original_path": "lib/session_store.ts",
+          "new_path": "shared/services/storage-service/session.ts",
+          "category": "shared",
+          "description": "会话存储服务",
+          "dependencies": ["features/session-management"],
+          "priority": "high",
+          "phase": 3
+        },
+        {
+          "original_path": "lib/settings_store.ts",
+          "new_path": "shared/services/storage-service/settings.ts",
+          "category": "shared",
+          "description": "设置存储服务",
+          "dependencies": ["features/user-settings"],
+          "priority": "high",
+          "phase": 3
+        }
+      ],
+      "utilities": [
+        {
+          "original_path": "lib/cast_system.ts",
+          "new_path": "features/content/lib/cast-system.ts",
+          "category": "content",
+          "description": "角色系统",
+          "dependencies": ["features/content"],
+          "priority": "medium",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/fictional_world.ts",
+          "new_path": "features/content/lib/world-context.ts",
+          "category": "content",
+          "description": "世界观上下文",
+          "dependencies": ["features/content"],
+          "priority": "medium",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/mail_queue.ts",
+          "new_path": "features/feedback/lib/mail-queue.ts",
+          "category": "feedback",
+          "description": "邮件队列管理",
+          "dependencies": ["features/feedback"],
+          "priority": "low",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/time_announcement.ts",
+          "new_path": "features/time-announcement/lib/announcer.ts",
+          "category": "time-announcement",
+          "description": "整点报时服务",
+          "dependencies": ["features/time-announcement"],
+          "priority": "low",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/show_history.ts",
+          "new_path": "features/history-tracking/lib/history-manager.ts",
+          "category": "history-tracking",
+          "description": "历史记录管理",
+          "dependencies": ["features/history-tracking"],
+          "priority": "low",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/tts_voices.ts",
+          "new_path": "features/voice-profiles/lib/voice-manager.ts",
+          "category": "voice-profiles",
+          "description": "音色管理",
+          "dependencies": ["features/voice-profiles"],
+          "priority": "low",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/microsoft_tts_voices.ts",
+          "new_path": "features/voice-profiles/lib/microsoft-voices.ts",
+          "category": "voice-profiles",
+          "description": "微软 TTS 音色配置",
+          "dependencies": ["features/voice-profiles"],
+          "priority": "low",
+          "phase": 4
+        },
+        {
+          "original_path": "lib/radio_monitor.ts",
+          "new_path": "shared/services/monitor-service/index.ts",
+          "category": "shared",
+          "description": "电台监控服务",
+          "dependencies": ["features/*", "shared/*"],
+          "priority": "medium",
+          "phase": 3
+        }
+      ]
+    },
+    "from_agents_directory": [
+      {
+        "original_path": "lib/agents/writer_agent.ts",
+        "new_path": "features/content/lib/writer-agent.ts",
+        "category": "content",
+        "description": "编剧 AI Agent",
+        "dependencies": ["features/content", "shared/services/ai-service"],
+        "priority": "high",
+        "phase": 4
+      },
+      {
+        "original_path": "lib/agents/director_agent.ts",
+        "new_path": "features/agents/lib/director-agent.ts",
+        "category": "agents",
+        "description": "导演 AI Agent",
+        "dependencies": ["features/agents", "features/content", "features/playback"],
+        "priority": "high",
+        "phase": 4
+      },
+      {
+        "original_path": "lib/agents/tts_agent.ts",
+        "new_path": "features/tts/lib/tts-agent.ts",
+        "category": "tts",
+        "description": "TTS AI Agent",
+        "dependencies": ["features/tts", "features/voice-profiles"],
+        "priority": "high",
+        "phase": 4
+      },
+      {
+        "original_path": "lib/agents/writer_tools.ts",
+        "new_path": "features/content/lib/writer-tools.ts",
+        "category": "content",
+        "description": "编剧工具集",
+        "dependencies": ["features/content"],
+        "priority": "medium",
+        "phase": 4
+      }
+    ],
+    "from_components_directory": [
+      {
+        "original_path": "components/RadioPlayer.tsx",
+        "new_path": "widgets/radio-player/index.tsx",
+        "category": "widgets",
+        "description": "电台播放器 Widget",
+        "dependencies": ["widgets/radio-player/*", "features/broadcast", "features/agents"],
+        "priority": "high",
+        "phase": 5
+      },
+      {
+        "original_path": "components/SettingsPanel.tsx",
+        "new_path": "widgets/settings-panel/index.tsx",
+        "category": "widgets",
+        "description": "设置面板 Widget",
+        "dependencies": ["widgets/settings-panel/*", "features/user-settings"],
+        "priority": "high",
+        "phase": 5
+      },
+      {
+        "original_path": "components/AgentMonitor.tsx",
+        "new_path": "widgets/agent-monitor/index.tsx",
+        "category": "widgets",
+        "description": "Agent 监控 Widget",
+        "dependencies": ["widgets/agent-monitor/*", "features/agents"],
+        "priority": "medium",
+        "phase": 5
+      },
+      {
+        "original_path": "components/ApiCallBubbles.tsx",
+        "new_path": "features/agents/ui/api-bubbles.tsx",
+        "category": "agents",
+        "description": "API 调用气泡组件",
+        "dependencies": ["features/agents"],
+        "priority": "low",
+        "phase": 5
+      },
+      {
+        "original_path": "components/PwaRegistrar.tsx",
+        "new_path": "shared/ui/pwa-registrar.tsx",
+        "category": "shared",
+        "description": "PWA 注册组件",
+        "dependencies": ["shared/*"],
+        "priority": "low",
+        "phase": 5
+      }
+    ],
+    "from_app_directory": [
+      {
+        "original_path": "app/layout.tsx",
+        "new_path": "app/layout.tsx",
+        "category": "app",
+        "description": "根布局（保持不变）",
+        "dependencies": ["app/*", "widgets/*"],
+        "priority": "low",
+        "phase": 5
+      },
+      {
+        "original_path": "app/page.tsx",
+        "new_path": "app/page.tsx",
+        "category": "app",
+        "description": "主页面（更新导入路径）",
+        "dependencies": ["app/*", "widgets/*"],
+        "priority": "medium",
+        "phase": 5
+      },
+      {
+        "original_path": "app/api/proxy/",
+        "new_path": "app/api/proxy/",
+        "category": "app",
+        "description": "API 路由（更新处理逻辑）",
+        "dependencies": ["shared/services/*"],
+        "priority": "medium",
+        "phase": 3
+      }
+    ]
+  },
+  "feature_definitions": {
+    "broadcast": {
+      "description": "广播控制功能",
+      "components": ["ui/BroadcastControls.tsx", "ui/PlayerStatus.tsx"],
+      "logic": ["lib/BroadcastController.ts"],
+      "api": ["api/broadcast-api.ts"],
+      "types": ["types/broadcast-types.ts"],
+      "store": ["store/broadcast-store.ts"],
+      "dependencies": ["playback", "agents", "shared/services/communication-service"],
+      "external_exports": ["BroadcastControls", "PlayerStatus", "BroadcastController", "useBroadcastStore"]
+    },
+    "playback": {
+      "description": "音频播放控制功能",
+      "components": ["ui/AudioVisualizer.tsx", "ui/VolumeControl.tsx"],
+      "logic": ["lib/AudioPlayer.ts", "lib/AudioMixer.ts"],
+      "api": ["api/playback-api.ts"],
+      "types": ["types/playback-types.ts"],
+      "store": ["store/playback-store.ts"],
+      "dependencies": ["shared/services/audio-service", "tts", "music-search"],
+      "external_exports": ["AudioPlayer", "AudioMixer", "usePlaybackStore"]
+    },
+    "agents": {
+      "description": "AI Agent 编排功能",
+      "components": ["ui/AgentMonitor.tsx", "ui/AgentStatus.tsx"],
+      "logic": ["lib/AgentOrchestrator.ts", "lib/WriterAgent.ts", "lib/DirectorAgent.ts", "lib/TTSAgent.ts"],
+      "api": ["api/agents-api.ts"],
+      "types": ["types/agents-types.ts"],
+      "store": ["store/agents-store.ts"],
+      "dependencies": ["content", "tts", "shared/services/communication-service", "shared/stores/global-state"],
+      "external_exports": ["AgentOrchestrator", "WriterAgent", "DirectorAgent", "TTSAgent", "useAgentsStore"]
+    },
+    "content": {
+      "description": "内容生成功能",
+      "components": ["ui/ContentEditor.tsx"],
+      "logic": ["lib/ContentGenerator.ts", "lib/CastSystem.ts", "lib/WorldContext.ts"],
+      "api": ["api/content-api.ts"],
+      "types": ["types/content-types.ts"],
+      "store": ["store/content-store.ts"],
+      "dependencies": ["shared/services/ai-service", "history-tracking", "shared/stores/global-state"],
+      "external_exports": ["ContentGenerator", "CastSystem", "WorldContext", "useContentStore"]
+    },
+    "music-search": {
+      "description": "音乐搜索功能",
+      "components": ["ui/MusicSearch.tsx", "ui/MusicPlaylist.tsx"],
+      "logic": ["lib/MusicSearchEngine.ts", "lib/MusicCache.ts", "lib/LyricsParser.ts"],
+      "api": ["api/music-api.ts"],
+      "types": ["types/music-types.ts"],
+      "store": ["store/music-store.ts"],
+      "dependencies": ["shared/services/music-service", "shared/services/cache-service"],
+      "external_exports": ["MusicSearchEngine", "MusicCache", "LyricsParser", "useMusicStore"]
+    },
+    "tts": {
+      "description": "文本转语音功能",
+      "components": ["ui/VoiceSelector.tsx"],
+      "logic": ["lib/TTSProcessor.ts", "lib/VoiceManager.ts", "lib/AudioCache.ts"],
+      "api": ["api/tts-api.ts"],
+      "types": ["types/tts-types.ts"],
+      "store": ["store/tts-store.ts"],
+      "dependencies": ["voice-profiles", "shared/services/ai-service", "shared/services/cache-service"],
+      "external_exports": ["TTSProcessor", "VoiceManager", "AudioCache", "useTTSStore"]
+    },
+    "user-settings": {
+      "description": "用户配置功能",
+      "components": ["ui/SettingsPanel.tsx", "ui/ApiConfig.tsx", "ui/Preferences.tsx"],
+      "logic": ["lib/SettingsManager.ts"],
+      "api": ["api/settings-api.ts"],
+      "types": ["types/settings-types.ts"],
+      "store": ["store/settings-store.ts"],
+      "dependencies": ["shared/services/storage-service"],
+      "external_exports": ["SettingsManager", "useSettingsStore"]
+    },
+    "session-management": {
+      "description": "会话持久化功能",
+      "components": ["ui/SessionManager.tsx"],
+      "logic": ["lib/SessionController.ts", "lib/SessionSync.ts"],
+      "api": ["api/session-api.ts"],
+      "types": ["types/session-types.ts"],
+      "store": ["store/session-store.ts"],
+      "dependencies": ["shared/services/storage-service", "shared/stores/global-state"],
+      "external_exports": ["SessionController", "SessionSync", "useSessionStore"]
+    },
+    "history-tracking": {
+      "description": "历史记录功能",
+      "components": ["ui/HistoryViewer.tsx"],
+      "logic": ["lib/HistoryTracker.ts", "lib/HistoryAnalyzer.ts"],
+      "api": ["api/history-api.ts"],
+      "types": ["types/history-types.ts"],
+      "store": ["store/history-store.ts"],
+      "dependencies": ["shared/services/storage-service", "shared/stores/global-state"],
+      "external_exports": ["HistoryTracker", "HistoryAnalyzer", "useHistoryStore"]
+    },
+    "voice-profiles": {
+      "description": "音色管理功能",
+      "components": ["ui/VoiceProfiles.tsx"],
+      "logic": ["lib/VoiceProfileManager.ts", "lib/MicrosoftTTSVoices.ts"],
+      "api": ["api/voice-api.ts"],
+      "types": ["types/voice-types.ts"],
+      "store": ["store/voice-store.ts"],
+      "dependencies": ["shared/services/storage-service"],
+      "external_exports": ["VoiceProfileManager", "useVoiceStore"]
+    },
+    "time-announcement": {
+      "description": "整点报时功能",
+      "components": ["ui/TimeAnnouncement.tsx"],
+      "logic": ["lib/TimeAnnouncer.ts"],
+      "api": ["api/time-api.ts"],
+      "types": ["types/time-types.ts"],
+      "store": ["store/time-store.ts"],
+      "dependencies": ["shared/stores/app-state", "tts"],
+      "external_exports": ["TimeAnnouncer", "useTimeStore"]
+    },
+    "feedback": {
+      "description": "用户投稿功能",
+      "components": ["ui/FeedbackPanel.tsx", "ui/MailQueue.tsx"],
+      "logic": ["lib/FeedbackProcessor.ts", "lib/MailQueue.ts"],
+      "api": ["api/feedback-api.ts"],
+      "types": ["types/feedback-types.ts"],
+      "store": ["store/feedback-store.ts"],
+      "dependencies": ["shared/services/communication-service"],
+      "external_exports": ["FeedbackProcessor", "MailQueue", "useFeedbackStore"]
+    }
+  },
+  "shared_layer_structure": {
+    "ui_components": {
+      "description": "通用 UI 组件库",
+      "subdirectories": {
+        "button": ["index.tsx", "types.ts"],
+        "modal": ["index.tsx", "types.ts"],
+        "form": ["index.tsx", "types.ts"],
+        "layout": ["index.tsx", "types.ts"],
+        "feedback": ["index.tsx", "types.ts"],
+        "chart": ["index.tsx", "types.ts"],
+        "visual": ["index.tsx", "types.ts"]
+      }
+    },
+    "hooks": {
+      "description": "通用 React Hooks",
+      "files": [
+        {"name": "use-event-bus.ts", "description": "事件总线 Hook"},
+        {"name": "use-cache.ts", "description": "缓存 Hook"},
+        {"name": "use-agent-sync.ts", "description": "Agent 同步 Hook"},
+        {"name": "use-audio-player.ts", "description": "音频播放 Hook"},
+        {"name": "use-session-sync.ts", "description": "会话同步 Hook"},
+        {"name": "use-error-handler.ts", "description": "错误处理 Hook"}
+      ]
+    },
+    "services": {
+      "description": "跨功能服务",
+      "subdirectories": {
+        "ai-service": ["index.ts", "openai.ts", "gemini.ts", "vertex.ts"],
+        "audio-service": ["index.ts", "mixer.ts", "player.ts", "recorder.ts"],
+        "music-service": ["index.ts", "gd-music.ts", "cache.ts", "diversity.ts"],
+        "storage-service": ["index.ts", "local.ts", "session.ts", "settings.ts"],
+        "communication-service": ["index.ts", "agent-bus.ts", "event-emitter.ts", "protocol.ts"],
+        "monitor-service": ["index.ts", "logger.ts", "metrics.ts", "alert.ts"],
+        "cache-service": ["index.ts", "memory.ts", "disk.ts", "distributed.ts"]
+      }
+    },
+    "types": {
+      "description": "共享类型定义",
+      "files": [
+        {"name": "common.ts", "description": "通用类型"},
+        {"name": "api.ts", "description": "API 相关类型"},
+        {"name": "events.ts", "description": "事件类型"},
+        {"name": "protocols.ts", "description": "协议类型"}
+      ]
+    },
+    "utils": {
+      "description": "工具函数",
+      "files": [
+        {"name": "constants.ts", "description": "全局常量"},
+        {"name": "validation.ts", "description": "数据验证"},
+        {"name": "transformation.ts", "description": "数据转换"},
+        {"name": "encryption.ts", "description": "加密工具"},
+        {"name": "formatting.ts", "description": "格式化工具"},
+        {"name": "async.ts", "description": "异步工具"}
+      ]
+    },
+    "stores": {
+      "description": "全局状态",
+      "subdirectories": {
+        "global-state": ["index.ts", "context.ts", "memory.ts", "sync.ts"],
+        "app-state": ["index.ts", "ui.ts", "system.ts", "sync.ts"],
+        "config": ["index.ts", "runtime.ts", "environment.ts"]
+      }
+    }
+  },
+  "entities_layer_structure": {
+    "radio-show": {
+      "description": "电台节目实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "timeline": {
+      "description": "时间线实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "music-track": {
+      "description": "音乐曲目实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "voice-actor": {
+      "description": "语音演员实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "agent": {
+      "description": "Agent 实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "audio-segment": {
+      "description": "音频片段实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    },
+    "context": {
+      "description": "上下文实体",
+      "files": ["index.ts", "methods.ts", "invariants.ts", "types.ts"]
+    }
+  },
+  "widgets_layer_structure": {
+    "radio-player": {
+      "description": "电台播放器 Widget",
+      "files": ["index.tsx", "controls.tsx", "timeline.tsx", "status-bar.tsx", "visualizer.tsx", "styles.ts"]
+    },
+    "settings-panel": {
+      "description": "设置面板 Widget",
+      "files": ["index.tsx", "api-config.tsx", "voice-config.tsx", "audio-config.tsx", "preferences.tsx"]
+    },
+    "agent-monitor": {
+      "description": "Agent 监控 Widget",
+      "files": ["index.tsx", "status-display.tsx", "log-viewer.tsx", "metrics.tsx"]
+    },
+    "broadcast-control": {
+      "description": "广播控制 Widget",
+      "files": ["index.tsx", "play-controls.tsx", "volume-control.tsx", "session-controls.tsx"]
+    }
+  },
+  "migration_phases": {
+    "phase_1": {
+      "name": "基础设施搭建",
+      "duration": "1-2 天",
+      "tasks": [
+        "创建新的目录结构",
+        "设置 TypeScript 路径映射",
+        "配置 ESLint 和 Prettier 规则",
+        "建立基础测试框架",
+        "创建基础类型定义"
+      ],
+      "completion_criteria": [
+        "目录结构创建完成",
+        "TypeScript 路径映射配置正确",
+        "开发工具链配置完成",
+        "基础测试通过"
+      ]
+    },
+    "phase_2": {
+      "name": "Types 和 Entities 定义",
+      "duration": "2-3 天",
+      "tasks": [
+        "迁移 radio_types.ts 到 Entities 层",
+        "创建各 Feature 专属类型",
+        "定义共享类型到 Shared 层",
+        "建立类型版本管理机制",
+        "更新所有导入路径"
+      ],
+      "completion_criteria": [
+        "类型定义迁移完成",
+        "类型检查通过",
+        "导入路径更新完成",
+        "向后兼容性保持"
+      ]
+    },
+    "phase_3": {
+      "name": "Services 和 Stores 重组",
+      "duration": "3-4 天",
+      "tasks": [
+        "创建 Service Container",
+        "迁移 AI 服务到 Shared 层",
+        "迁移音频服务到 Shared 层",
+        "迁移存储服务到 Shared 层",
+        "建立统一的状态管理",
+        "实现缓存服务"
+      ],
+      "completion_criteria": [
+        "Service 层迁移完成",
+        "状态管理统一完成",
+        "缓存策略实现完成",
+        "服务依赖注入配置完成"
+      ]
+    },
+    "phase_4": {
+      "name": "Features 拆分",
+      "duration": "5-7 天",
+      "tasks": [
+        "创建 broadcast Feature",
+        "创建 agents Feature",
+        "创建 content Feature",
+        "创建 playback Feature",
+        "创建 music-search Feature",
+        "创建 tts Feature",
+        "创建 user-settings Feature",
+        "创建其他 Features"
+      ],
+      "completion_criteria": [
+        "所有 Features 创建完成",
+        "Feature 边界清晰",
+        "Feature 间依赖关系正确",
+        "Feature 内部测试通过"
+      ]
+    },
+    "phase_5": {
+      "name": "Components 调整",
+      "duration": "2-3 天",
+      "tasks": [
+        "将 UI 组件迁移到对应 Features",
+        "创建 Widget 复合组件",
+        "更新组件导入路径",
+        "优化组件复用性",
+        "更新组件测试"
+      ],
+      "completion_criteria": [
+        "组件迁移完成",
+        "Widget 组件创建完成",
+        "组件复用性提升",
+        "UI 测试通过"
+      ]
+    },
+    "phase_6": {
+      "name": "测试和验证",
+      "duration": "2-3 天",
+      "tasks": [
+        "编写单元测试",
+        "编写集成测试",
+        "性能基准测试",
+        "内存泄漏检测",
+        "最终代码审查"
+      ],
+      "completion_criteria": [
+        "测试覆盖率达到 80%+",
+        "性能指标保持或提升",
+        "无内存泄漏",
+        "代码质量审查通过"
+      ]
+    }
+  },
+  "risk_mitigation": {
+    "technical_risks": [
+      {
+        "risk": "大规模重构导致功能回退",
+        "probability": "high",
+        "impact": "severe",
+        "mitigation": [
+          "分阶段迁移，每阶段都有可工作的版本",
+          "建立完整的回滚机制",
+          "每日构建和测试"
+        ]
+      },
+      {
+        "risk": "TypeScript 编译错误",
+        "probability": "medium",
+        "impact": "medium",
+        "mitigation": [
+          "使用自动化工具辅助迁移",
+          "分批修复编译错误",
+          "建立类型检查 CI"
+        ]
+      },
+      {
+        "risk": "性能下降",
+        "probability": "medium",
+        "impact": "medium",
+        "mitigation": [
+          "建立性能基准",
+          "定期性能测试",
+          "及时优化热点代码"
+        ]
+      }
+    ],
+    "team_risks": [
+      {
+        "risk": "学习成本高",
+        "probability": "medium",
+        "impact": "medium",
+        "mitigation": [
+          "提供详细的迁移文档",
+          "组织团队培训",
+          "建立代码审查机制"
+        ]
+      },
+      {
+        "risk": "开发进度延迟",
+        "probability": "high",
+        "impact": "severe",
+        "mitigation": [
+          "合理安排里程碑",
+          "预留缓冲时间",
+          "优先完成核心功能"
+        ]
+      }
+    ]
+  },
+  "success_metrics": {
+    "code_quality": {
+      "typescript_errors": 0,
+      "eslint_warnings": 0,
+      "test_coverage": "80%+",
+      "cyclomatic_complexity": "< 10",
+      "circular_dependencies": "none"
+    },
+    "performance": {
+      "app_startup_time": "< 3s",
+      "page_switch_time": "< 1s",
+      "memory_usage": "< 100MB",
+      "memory_leaks": "none",
+      "cache_hit_rate": "80%+"
+    },
+    "maintainability": {
+      "code_reuse_rate": "+40%",
+      "modification_impact": "-60%",
+      "development_efficiency": "+50%",
+      "readability_improvement": "+70%"
+    }
+  }
+}

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Settings } from "lucide-react";
-import RadioPlayer from "@/components/RadioPlayer";
-import SettingsPanel from "@/components/SettingsPanel";
-import ApiCallBubbles from "@/components/ApiCallBubbles";
-import AgentMonitor from "@/components/AgentMonitor";
+import RadioPlayer from "@widgets/radio-player";
+import SettingsPanel from "@widgets/settings-panel";
+import ApiCallBubbles from "@features/agents/ui/api-bubbles";
+import AgentMonitor from "@widgets/agent-monitor";
 
 export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);

@@ -3,17 +3,17 @@
  * 管理语音生成队列，自动重试失败请求
  */
 
-import { getSettings } from '../settings_store';
-import { buildVertexUrl, apiFetch } from '../ai_service';
+import { getSettings } from '@shared/services/storage-service/settings';
+import { buildVertexUrl, apiFetch } from '@shared/services/ai-service';
 import {
     TTSRequest,
     TTSResult,
     VOICE_PROFILES,
     SpeakerId,
     MoodType
-} from '../types/radio_types';
-import { radioMonitor } from '../radio_monitor';
-import { getMicrosoftFullVoiceName } from '../voice_provider';
+} from '@shared/types/radio-core';
+import { radioMonitor } from '@shared/services/monitor-service';
+import { getMicrosoftFullVoiceName } from './voice-provider';
 
 // ================== Constants ==================
 
@@ -133,7 +133,7 @@ Special Instructions: ${customStyle}`;
 
 // ================== TTS Agent Class ==================
 
-import { Cast, CastMember } from '../cast_system';
+import { Cast, CastMember } from '@features/content/lib/cast-system';
 
 const MAX_CONCURRENT = 5; // 最大并发数
 

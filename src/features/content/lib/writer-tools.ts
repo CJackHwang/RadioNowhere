@@ -3,11 +3,11 @@
  * 提供音乐搜索、歌词获取、节目提交等工具
  */
 
-import { searchMusicWithValidation, getLyrics } from '../gdmusic_service';
-import { ShowTimeline } from '../types/radio_types';
-import { getRecentConcepts, getRecentSongs, isDuplicateConcept, recordSong } from '../show_history';
-import { NEWS_SERVICE } from '../constants';
-import { analyzeDiversity, addProhibitedArtist } from '../music_diversity';
+import { searchMusicWithValidation, getLyrics } from '@features/music-search/lib/gd-music-service';
+import { ShowTimeline } from '@shared/types/radio-core';
+import { getRecentConcepts, getRecentSongs, isDuplicateConcept, recordSong } from '@features/history-tracking/lib/history-manager';
+import { NEWS_SERVICE } from '@shared/utils/constants';
+import { analyzeDiversity, addProhibitedArtist } from '@features/music-search/lib/diversity-manager';
 
 // ================== Tool Definitions ==================
 
@@ -283,7 +283,7 @@ function executeSubmitShow(
         for (const block of timeline.blocks) {
             if (block.type === 'music' && block.search) {
                 recordSong(block.search);
-                
+
                 // 从搜索词中提取歌手名并添加到禁止列表
                 const parts = block.search.split(' - ');
                 if (parts.length === 2) {
@@ -317,12 +317,12 @@ function executeCheckArtistDiversity(artistsParam: string): ToolResult {
             error: '错误：未提供歌手列表'
         };
     }
-    
+
     // 将逗号分隔的字符串转换为数组
     const artists = artistsParam.split(',').map(a => a.trim()).filter(a => a.length > 0);
-    
+
     const analysis = analyzeDiversity(artists);
-    
+
     if (analysis.violations.length > 0) {
         return {
             success: false,
@@ -334,10 +334,10 @@ function executeCheckArtistDiversity(artistsParam: string): ToolResult {
             }
         };
     }
-    
+
     let resultMessage = `🎵 **多样性检查结果**\n\n得分: ${analysis.score}/100\n\n`;
     resultMessage += analysis.feedback.join('\n');
-    
+
     if (analysis.score >= 70) {
         resultMessage += '\n\n✅ **通过**：多样性评分达标，节目可以保留。';
     } else {
@@ -347,7 +347,7 @@ function executeCheckArtistDiversity(artistsParam: string): ToolResult {
         resultMessage += '- 避免同一个歌手出现多次\n';
         resultMessage += '- 尝试一些小众或新兴艺人\n';
     }
-    
+
     return {
         success: true,
         data: {

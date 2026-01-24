@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Bot, ChevronDown, ChevronUp, X, Wrench, Brain, MessageSquare, AlertCircle, CheckCircle, Loader2, Trash2 } from "lucide-react";
-import { radioMonitor, AgentStatus, LogEvent, AgentType, AgentThought } from "@/lib/radio_monitor";
-import { resetHistory } from "@/lib/show_history";
+import { radioMonitor, AgentStatus, LogEvent, AgentType, AgentThought } from "@shared/services/monitor-service";
+import { resetHistory } from "@features/history-tracking/lib/history-manager";
 
 interface AgentState {
     status: AgentStatus['status'];
@@ -212,8 +212,8 @@ export default function AgentMonitor() {
                                         <div key={i} className="text-[9px] font-mono leading-relaxed mb-1">
                                             <span className="text-neutral-600">[{log.agent}]</span>{' '}
                                             <span className={`break-all ${log.level === 'error' ? 'text-red-400' :
-                                                    log.level === 'warn' ? 'text-yellow-400' :
-                                                        'text-neutral-400'
+                                                log.level === 'warn' ? 'text-yellow-400' :
+                                                    'text-neutral-400'
                                                 }`}>{log.message.slice(0, 300)}{log.message.length > 300 ? '...' : ''}</span>
                                         </div>
                                     ))

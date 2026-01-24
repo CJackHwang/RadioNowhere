@@ -3,9 +3,9 @@
  * 根据当前 TTS 渠道动态返回可用音色列表
  */
 
-import { getSettings } from './settings_store';
-import { TTS_VOICES, TTSVoice } from './tts_voices';
-import { MICROSOFT_TTS_VOICES, MicrosoftTTSVoice } from './microsoft_tts_voices';
+import { getSettings } from '@shared/services/storage-service/settings';
+import { TTS_VOICES, TTSVoice } from '@features/voice-profiles/lib/voice-manager';
+import { MICROSOFT_TTS_VOICES, MicrosoftTTSVoice } from '@features/voice-profiles/lib/microsoft-voices';
 
 // ================== Unified Voice Interface ==================
 

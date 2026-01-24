@@ -3,7 +3,7 @@
  * 类似有声书配音，支持多角色动态组合
  */
 
-import { ALL_VOICES, VoiceName } from './types/radio_types';
+import { ALL_VOICES, VoiceName } from '@shared/types/radio-core';
 
 // ================== Types ==================
 

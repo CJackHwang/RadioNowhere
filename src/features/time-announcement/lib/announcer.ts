@@ -3,10 +3,10 @@
  * 在整点和半点播放报时音频
  */
 
-import { ttsAgent } from './agents/tts_agent';
-import { audioMixer } from './audio_mixer';
-import { radioMonitor } from './radio_monitor';
-import { TIME_ANNOUNCEMENT } from './constants';
+import { ttsAgent } from '@features/tts/lib/tts-agent';
+import { audioMixer } from '@shared/services/audio-service/mixer';
+import { radioMonitor } from '@shared/services/monitor-service';
+import { TIME_ANNOUNCEMENT } from '@shared/utils/constants';
 
 // ================== Types ==================
 

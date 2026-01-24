@@ -8,12 +8,12 @@ import {
     Cpu, Music, Mic2,
     Layers, Zap, Clock, RotateCcw
 } from 'lucide-react';
-import { directorAgent } from '@/lib/agents/director_agent';
-import { audioMixer } from '@/lib/audio_mixer';
-import { radioMonitor, AgentStatus, ScriptEvent, LogEvent } from '@/lib/radio_monitor';
-import { TimelineBlock, TalkBlock, MusicBlock, ShowTimeline, PlayerState } from '@/lib/types/radio_types';
-import { hasSession, getSession, clearSession } from '@/lib/session_store';
-import { mailQueue } from '@/lib/mail_queue';
+import { directorAgent } from '@features/agents/lib/director-agent';
+import { audioMixer } from '@shared/services/audio-service/mixer';
+import { radioMonitor, AgentStatus, ScriptEvent, LogEvent } from '@shared/services/monitor-service';
+import { TimelineBlock, TalkBlock, MusicBlock, ShowTimeline, PlayerState } from '@shared/types/radio-core';
+import { hasSession, getSession, clearSession } from '@shared/services/storage-service/session';
+import { mailQueue } from '@features/feedback/lib/mail-queue';
 
 // ================== Components ==================
 

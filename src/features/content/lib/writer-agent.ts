@@ -3,21 +3,21 @@
  * 具备工具调用能力，可搜索音乐、获取歌词、自我校验
  */
 
-import { getSettings } from '../settings_store';
-import { RADIO, AGENT } from '../constants';
+import { getSettings } from '@shared/services/storage-service/settings';
+import { RADIO, AGENT } from '@shared/utils/constants';
 import {
     ShowTimeline,
     TimelineBlock,
-} from '../types/radio_types';
-import { globalState } from '../global_state';
-import { radioMonitor } from '../radio_monitor';
-import { getVoiceListForPrompt } from '../voice_provider';
+} from '@shared/types/radio-core';
+import { globalState } from '@shared/stores/global-state';
+import { radioMonitor } from '@shared/services/monitor-service';
+import { getVoiceListForPrompt } from '@features/tts/lib/voice-provider';
 import {
     executeToolCall,
     getHistoryContext,
     getToolsDescription
-} from './writer_tools';
-import { getProhibitedArtists } from '../music_diversity';
+} from './writer-tools';
+import { getProhibitedArtists } from '@features/music-search/lib/diversity-manager';
 
 // ================== Constants ==================
 
@@ -88,7 +88,7 @@ function getRadioSetting(): string {
 
 // ================== Writer Agent Class ==================
 
-import { Cast, castDirector, ShowType } from '../cast_system';
+import { Cast, castDirector, ShowType } from './cast-system';
 
 export class WriterAgent {
     private currentCast: Cast | null = null;
@@ -280,7 +280,7 @@ export class WriterAgent {
     private buildReActSystemPrompt(duration: number, theme?: string, userRequest?: string): string {
         const historyContext = getHistoryContext();
         const toolsDesc = getToolsDescription();
-        
+
         // 获取禁止列表
         const prohibitedArtists = getProhibitedArtists();
         const prohibitionContext = prohibitedArtists.length > 0

@@ -3,7 +3,7 @@
  * 追踪近期节目和歌曲，避免重复
  */
 
-import { HISTORY } from './constants';
+import { HISTORY } from '@shared/utils/constants';
 
 // ================== Types ==================
 

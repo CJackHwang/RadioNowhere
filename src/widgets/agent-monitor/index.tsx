@@ -33,7 +33,7 @@ export default function AgentMonitor() {
         });
 
         const unsubLog = radioMonitor.on('log', (data) => {
-            setLogs(prev => [...prev.slice(-29), data]);
+            setLogs(prev => [...prev.slice(-199), data]);
         });
 
         const unsubThought = radioMonitor.on('thought', (data) => {
@@ -106,7 +106,8 @@ export default function AgentMonitor() {
     }
 
     return (
-        <div className="fixed bottom-4 left-4 z-50 w-96 max-h-[80vh] bg-neutral-900/95 backdrop-blur-md rounded-lg border border-neutral-700 shadow-2xl overflow-hidden flex flex-col">
+        <div className={`fixed left-4 z-50 w-80 min-w-72 max-w-96 bg-neutral-900/95 backdrop-blur-md rounded-lg border border-neutral-700 shadow-2xl overflow-hidden flex flex-col ${isExpanded ? 'top-4 bottom-4' : 'bottom-4'
+            }`}>
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-neutral-700 bg-neutral-800/50">
                 <div className="flex items-center gap-2">
@@ -136,24 +137,23 @@ export default function AgentMonitor() {
                 </div>
             </div>
 
+            {/* Agents Status - always visible */}
+            <div className="px-3 py-2 border-b border-neutral-800 space-y-1.5">
+                {(['WRITER', 'DIRECTOR', 'TTS'] as AgentType[]).map(agent => (
+                    <div key={agent} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            {getStatusIcon(agents[agent].status)}
+                            <span className="text-[11px] font-mono text-neutral-400">{agent}</span>
+                        </div>
+                        <span className={`text-[10px] font-mono ${getStatusColor(agents[agent].status)}`}>
+                            {agents[agent].message?.slice(0, 30) || agents[agent].status}
+                        </span>
+                    </div>
+                ))}
+            </div>
+
             {isExpanded && (
                 <>
-                    {/* Agents Status */}
-                    <div className="px-3 py-2 border-b border-neutral-800 space-y-1.5">
-                        {(['WRITER', 'DIRECTOR', 'TTS'] as AgentType[]).map(agent => (
-                            <div key={agent} className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    {getStatusIcon(agents[agent].status)}
-                                    <span className="text-[11px] font-mono text-neutral-400">{agent}</span>
-                                </div>
-                                <span className={`text-[10px] font-mono ${getStatusColor(agents[agent].status)}`}>
-                                    {agents[agent].message?.slice(0, 30) || agents[agent].status}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Tab Buttons */}
                     <div className="flex border-b border-neutral-800">
                         <button
                             onClick={() => setActiveTab('thoughts')}
@@ -178,7 +178,7 @@ export default function AgentMonitor() {
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 overflow-y-auto px-3 py-2 min-h-[150px] max-h-[300px]">
+                    <div className="flex-1 overflow-y-auto px-3 py-2">
                         {activeTab === 'thoughts' ? (
                             <div className="space-y-2">
                                 {thoughts.length === 0 ? (
@@ -208,7 +208,7 @@ export default function AgentMonitor() {
                                         Waiting for logs...
                                     </div>
                                 ) : (
-                                    logs.slice(-15).map((log, i) => (
+                                    [...logs].reverse().map((log, i) => (
                                         <div key={i} className="text-[9px] font-mono leading-relaxed mb-1">
                                             <span className="text-neutral-600">[{log.agent}]</span>{' '}
                                             <span className={`break-all ${log.level === 'error' ? 'text-red-400' :

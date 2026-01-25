@@ -37,7 +37,7 @@ export interface IApiSettings {
     preloadBlockCount: number;  // 提前准备的 block 数量 (推荐: 5)
 }
 
-const DEFAULT_SETTINGS: IApiSettings = {
+export const DEFAULT_SETTINGS: IApiSettings = {
     endpoint: "",
     apiKey: "",
     modelName: "gpt-4o",

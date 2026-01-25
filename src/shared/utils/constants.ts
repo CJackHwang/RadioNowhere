@@ -15,7 +15,7 @@ export const RADIO = {
 
 export const SHOW = {
     MAIN_DURATION: 480,               // 主节目时长 (秒) - 8分钟
-    PREGENERATE_DURATION: 240,        // 预生成节目时长 (秒) - 4分钟
+    PREGENERATE_DURATION: 480,        // 预生成节目时长 (秒) - 8分钟
     DEFAULT_TIMELINE_DURATION: 120,   // 默认时间线时长 (秒)
 };
 

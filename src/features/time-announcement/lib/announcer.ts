@@ -204,9 +204,13 @@ class TimeAnnouncementService {
             radioMonitor.log('DIRECTOR', `Time announcement error: ${error}`, 'error');
         }
 
-        // 5. 恢复原音频
+        // 5. 恢复原音频（渐入效果）
         if (this.pausedState?.wasMusicPlaying) {
+            // 先将音量设为 0，再恢复播放，然后渐入
+            audioMixer.setMusicVolume(0);
             audioMixer.resumeMusic();
+            // 渐入到正常音量（1 秒）
+            await audioMixer.fadeMusic(0.8, 1000);
         }
         this.pausedState = null;
 

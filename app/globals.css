@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #050505;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,15 +12,119 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden !important;
+  /* Prevent horizontal scroll only */
+  overflow-y: auto !important;
+  /* Allow vertical scroll - !important needed to override Tailwind reset */
+  height: auto !important;
+  min-height: 100vh;
+}
+
+/* ================== Premium Design System ================== */
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* --- Gradients --- */
+
+.bg-vibrant-gradient {
+  background: linear-gradient(135deg,
+      #8b5cf6 0%,
+      /* Violet */
+      #ec4899 50%,
+      /* Pink */
+      #f97316 100%
+      /* Orange */
+    );
+}
+
+.text-vibrant-gradient {
+  background: linear-gradient(135deg, #a78bfa 0%, #f472b6 50%, #fb923c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* --- Glass Effects --- */
+
+.glass-panel {
+  background: rgba(18, 18, 18, 0.65);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.glass-button:active {
+  transform: translateY(0);
+}
+
+/* --- Animations --- */
+
+/* Pulse Glow for Play Button */
+@keyframes button-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 15px rgba(236, 72, 153, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0);
+  }
+}
+
+.animate-button-pulse {
+  animation: button-pulse 2s infinite;
+}
+
+/* Spectrum Bars */
+@keyframes spectrum-bounce {
+
+  0%,
+  100% {
+    height: 4px;
+    opacity: 0.5;
+  }
+
+  50% {
+    height: 24px;
+    opacity: 1;
+  }
+}
+
+.animate-spectrum {
+  animation: spectrum-bounce 1s ease-in-out infinite;
+}
+
+/* Fade Masks */
+.mask-linear-fade {
+  mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
 }

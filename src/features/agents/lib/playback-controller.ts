@@ -83,7 +83,20 @@ export function skipToBlock(state: DirectorState, index: number): void {
             radioMonitor.log('DIRECTOR', 'Resuming from pause for skip', 'info');
         }
 
+        // 立即停止所有音频，避免冲突
         audioMixer.stopAll();
+
+        // Immediately emit script event for the target block to update UI state
+        // This ensures UI is in sync with the audio system
+        const targetBlock = timeline.blocks[index];
+        if (targetBlock) {
+            radioMonitor.emitScript(
+                'system',
+                `Jumping to: ${targetBlock.type}`,
+                targetBlock.id
+            );
+        }
+
         radioMonitor.log('DIRECTOR', `Jumping to block ${index}`, 'info');
     }
 }

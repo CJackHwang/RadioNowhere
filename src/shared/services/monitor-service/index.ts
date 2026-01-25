@@ -13,10 +13,18 @@ export interface AgentStatus {
     message?: string;
 }
 
+export interface MusicMeta {
+    trackName: string;
+    artist: string;
+    album: string;
+    coverUrl?: string;
+}
+
 export interface ScriptEvent {
     speaker: string;
     text: string;
     blockId: string;
+    musicMeta?: MusicMeta;
 }
 
 export interface LogEvent {
@@ -92,6 +100,24 @@ class RadioMonitor {
      */
     emitScript(speaker: string, text: string, blockId: string): void {
         const data: ScriptEvent = { speaker, text, blockId };
+        this.emit('script', data);
+    }
+
+    /**
+     * 发出音乐播放事件（带元数据）
+     */
+    emitMusicScript(trackName: string, artist: string, album: string, coverUrl: string | null, blockId: string): void {
+        const data: ScriptEvent = {
+            speaker: 'music',
+            text: trackName,
+            blockId,
+            musicMeta: {
+                trackName,
+                artist,
+                album,
+                coverUrl: coverUrl || undefined
+            }
+        };
         this.emit('script', data);
     }
 

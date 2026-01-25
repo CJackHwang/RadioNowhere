@@ -97,6 +97,7 @@ export class DirectorAgent {
         this.state.context = null;
         this.state.preparedAudio.clear();
         this.state.musicDataCache.clear();
+        this.state.musicCoverCache.clear();
         this.state.isPreparing.clear();
         this.state.nextTimeline = null;
         this.state.isPreparingNext = false;
@@ -218,9 +219,17 @@ export class DirectorAgent {
                     nextTimeline = null;
                     nextTimelineReady = false;
 
+                    // 确保当前音频完全停止
+                    audioMixer.stopAll();
+                    await this.delay(200);
+
+                    // 清空旧节目的 TTS 缓存，防止音频串用
+                    this.state.preparedAudio.clear();
+                    radioMonitor.log('DIRECTOR', 'Cleared TTS cache for new program', 'trace');
+
                     radioMonitor.log('DIRECTOR', 'Playing transition music...', 'info');
                     await WarmupContent.playTransitionMusic((ms) => this.delay(ms));
-                    await this.delay(500);
+                    await this.delay(800);  // 增加缓冲时间
 
                     await this.setupTimeline(currentTimeline);
                     radioMonitor.updateStatus('DIRECTOR', 'BUSY', 'Preparing audio...');
@@ -231,6 +240,9 @@ export class DirectorAgent {
                     await audioMixer.fadeMusic(0, 1000);
                     audioMixer.stopMusic();
                     audioMixer.setMusicVolume(AUDIO.MUSIC_DEFAULT_VOLUME);
+
+                    // 清空旧节目的 TTS 缓存，防止音频串用
+                    this.state.preparedAudio.clear();
 
                     const pendingMail = mailQueue.getNext();
                     currentTimeline = await this.generateMainTimeline(undefined, pendingMail?.content);

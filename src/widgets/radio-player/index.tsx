@@ -73,7 +73,7 @@ export default function RadioPlayer() {
                     {/* Subtitles Area (Lyrics View) */}
                     <motion.div
                         layout
-                        className={`flex flex-col relative z-10 w-full max-w-md mx-auto transition-all duration-500 ${isSubtitleExpanded ? 'pt-8 pb-4' : 'pt-12 pb-12'
+                        className={`flex flex-col relative z-10 w-full max-w-md mx-auto transition-all duration-500 ${isSubtitleExpanded ? 'pt-8 pb-4' : 'pt-12 pb-4'
                             }`}
                     >
                         <SubtitleDisplay
@@ -95,7 +95,7 @@ export default function RadioPlayer() {
                     }}
                     transition={{ duration: 0.4, ease: "easeInOut" }}
                     className="relative z-20 px-6 bg-linear-to-b from-transparent to-black/80"
-                    style={{ paddingBottom: isSubtitleExpanded ? 0 : 36, paddingTop: isSubtitleExpanded ? 0 : 8 }}
+                    style={{ paddingBottom: isSubtitleExpanded ? 0 : 36, paddingTop: 0 }}
                 >
 
 

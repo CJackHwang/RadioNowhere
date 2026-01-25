@@ -8,7 +8,7 @@ import { ttsAgent } from '@features/tts/lib/tts-agent';
 import { audioMixer } from '@shared/services/audio-service/mixer';
 import { radioMonitor } from '@shared/services/monitor-service';
 import { globalState } from '@shared/stores/global-state';
-import { searchMusic, getMusicUrl, getLyrics, IGDMusicTrack } from '@features/music-search/lib/gd-music-service';
+import { searchMusic, getMusicUrl, getLyrics, getAlbumArt, IGDMusicTrack } from '@features/music-search/lib/gd-music-service';
 import { recordSong } from '@features/history-tracking/lib/history-manager';
 import { addProhibitedArtist } from '@features/music-search/lib/diversity-manager';
 import { AUDIO } from '@shared/utils/constants';
@@ -97,14 +97,20 @@ export async function prepareMusicBlock(
         }
 
         if (!urlToDownload) {
-            const [newUrl, lyrics] = await Promise.all([
+            const [newUrl, lyrics, albumArt] = await Promise.all([
                 getMusicUrl(track.id, 320, track.source),
-                getLyrics(track.lyricId, track.source)
+                getLyrics(track.lyricId, track.source),
+                getAlbumArt(track.picId, 500, track.source)
             ]);
 
             if (newUrl) {
                 urlToDownload = newUrl;
                 state.musicUrlCache.set(block.search, { url: newUrl, cachedAt: Date.now() });
+            }
+
+            // 缓存专辑封面 URL
+            if (albumArt) {
+                state.musicCoverCache.set(block.search, albumArt);
             }
 
             if (lyrics?.lyric) {
@@ -201,6 +207,20 @@ export async function executeMusicBlock(
 
             if (result.success) {
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+
+                // 发送带元数据的音乐播放事件
+                const track = state.musicCache.get(block.search);
+                const coverUrl = state.musicCoverCache.get(block.search) || null;
+                if (track) {
+                    radioMonitor.emitMusicScript(
+                        track.name,
+                        track.artist.join(', '),
+                        track.album,
+                        coverUrl,
+                        block.id
+                    );
+                }
+
                 await playIntroOverlay();
                 globalState.addTrack(block.search);
 
@@ -250,6 +270,27 @@ export async function executeMusicBlock(
             radioMonitor.log('DIRECTOR', `Live music playback failed: ${block.search} - ${playResult.error}`, 'error');
             return;
         }
+
+        // 发送带元数据的音乐播放事件
+        let coverUrl = state.musicCoverCache.get(block.search) || null;
+        // 如果还没有封面，尝试获取
+        if (!coverUrl && track.picId) {
+            try {
+                coverUrl = await getAlbumArt(track.picId, 500, track.source);
+                if (coverUrl) {
+                    state.musicCoverCache.set(block.search, coverUrl);
+                }
+            } catch {
+                // 忽略封面获取失败
+            }
+        }
+        radioMonitor.emitMusicScript(
+            track.name,
+            track.artist.join(', '),
+            track.album,
+            coverUrl,
+            block.id
+        );
 
         await playIntroOverlay();
         globalState.addTrack(block.search);

@@ -43,7 +43,24 @@ const SubtitleDisplay = React.memo(({ currentLine, isExpanded, onExpandChange }:
         // Determine display info based on speaker
         const lowerText = text.toLowerCase();
         if (speaker === 'music' || speaker === 'dj' || lowerText.includes('music')) {
-            // Music playing
+            // Music playing - 优先使用事件中的元数据
+            if (currentLine.musicMeta) {
+                const { trackName, artist, album, coverUrl } = currentLine.musicMeta;
+                setDisplayInfo({
+                    type: 'music',
+                    speaker: speaker,
+                    displayName: trackName,
+                    subtitle: `${artist} · ${album}`
+                });
+                // 直接使用事件中的封面 URL
+                if (coverUrl) {
+                    setCoverUrl(coverUrl);
+                    lastFetchedTrack.current = trackName;
+                }
+                return;
+            }
+
+            // 降级到原有逻辑
             const rawName = text.replace('Playing: ', '');
             // If the name is just "music" (common system message), show "Now Playing" instead
             const displayName = rawName.toLowerCase() === 'music' ? 'Now Playing' : rawName || 'Now Playing';

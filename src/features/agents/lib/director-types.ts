@@ -41,6 +41,7 @@ export interface DirectorState {
     musicCache: Map<string, IGDMusicTrack>;
     musicUrlCache: Map<string, { url: string; cachedAt: number }>;
     musicDataCache: Map<string, Blob>;
+    musicCoverCache: Map<string, string>;  // search keyword -> cover URL
     isPreparing: Set<string>;
 
     // 双缓冲
@@ -65,6 +66,7 @@ export function createDefaultState(): DirectorState {
         musicCache: new Map(),
         musicUrlCache: new Map(),
         musicDataCache: new Map(),
+        musicCoverCache: new Map(),
         isPreparing: new Set(),
         nextTimeline: null,
         isPreparingNext: false,

@@ -353,7 +353,7 @@ const SubtitleDisplay = React.memo(({ currentLine, isExpanded, onExpandChange }:
                             onClick={() => !isExpanded && onExpandChange(true)}
                         >
                             {!isExpanded && (
-                                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent h-px w-full -top-6" />
+                                <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent h-px w-full -top-6" />
                             )}
 
                             <motion.div

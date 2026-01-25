@@ -38,12 +38,12 @@ export default function MailboxDrawer({
                     {/* Outer glow wrapper */}
                     <div className="relative group">
                         {/* Gradient glow effect */}
-                        <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600/30 via-pink-500/30 to-orange-500/30 rounded-2xl blur-lg opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
+                        <div className="absolute -inset-0.5 bg-linear-to-r from-violet-600/30 via-pink-500/30 to-orange-500/30 rounded-2xl blur-lg opacity-60 group-hover:opacity-80 transition-opacity duration-500" />
 
                         {/* Main container */}
                         <div className="relative glass-panel rounded-2xl p-1.5 overflow-hidden">
                             {/* Inner gradient border */}
-                            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/10 via-transparent to-white/5 pointer-events-none" />
+                            <div className="absolute inset-0 rounded-2xl bg-linear-to-br from-white/10 via-transparent to-white/5 pointer-events-none" />
 
                             {/* Input row */}
                             <div className="relative flex items-center gap-2">
@@ -71,7 +71,7 @@ export default function MailboxDrawer({
                                         onClick={handleSubmit}
                                         disabled={!userMessage.trim()}
                                         className={`p-2.5 rounded-xl transition-all duration-300 ${userMessage.trim()
-                                            ? 'bg-gradient-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40'
+                                            ? 'bg-linear-to-r from-violet-500 to-pink-500 text-white shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40'
                                             : 'bg-white/5 text-neutral-600 cursor-not-allowed'
                                             }`}
                                     >

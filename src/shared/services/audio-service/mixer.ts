@@ -77,6 +77,10 @@ export class AudioMixer {
 
     private fadeInterval: NodeJS.Timeout | null = null;
 
+    // 暂停状态跟踪 - 用于 resumeAll 只恢复真正被暂停的音轨
+    private wasMusicPlaying: boolean = false;
+    private wasVoicePlaying: boolean = false;
+
     constructor() {
         Howler.volume(this.masterVolume);
     }
@@ -395,16 +399,27 @@ export class AudioMixer {
      * 全部暂停
      */
     pauseAll(): void {
+        // 记录暂停时的播放状态
+        this.wasMusicPlaying = this.musicHowl?.playing() || false;
+        this.wasVoicePlaying = this.voiceHowl?.playing() || false;
+
         this.musicHowl?.pause();
         this.voiceHowl?.pause();
     }
 
     /**
-     * 全部继续
+     * 全部继续 - 只恢复暂停时正在播放的音轨
      */
     resumeAll(): void {
-        this.musicHowl?.play();
-        this.voiceHowl?.play();
+        if (this.wasMusicPlaying) {
+            this.musicHowl?.play();
+        }
+        if (this.wasVoicePlaying) {
+            this.voiceHowl?.play();
+        }
+        // 重置状态
+        this.wasMusicPlaying = false;
+        this.wasVoicePlaying = false;
     }
 
     /**

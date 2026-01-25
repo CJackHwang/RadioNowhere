@@ -141,9 +141,14 @@ export async function executeTalkBlock(
         await executeTalkBlockSingle(state, block, delay);
     }
 
-    if (hadBackgroundMusic && hadBackgroundMusic.action === 'fade') {
-        await audioMixer.fadeMusic(AUDIO.MUSIC_DEFAULT_VOLUME, AUDIO.FADE_DURATION_NORMAL);
-        radioMonitor.log('DIRECTOR', 'Restored music volume after talk', 'trace');
+    if (hadBackgroundMusic) {
+        if (hadBackgroundMusic.action === 'fade') {
+            await audioMixer.fadeMusic(AUDIO.MUSIC_DEFAULT_VOLUME, AUDIO.FADE_DURATION_NORMAL);
+            radioMonitor.log('DIRECTOR', 'Restored music volume after talk', 'trace');
+        } else if (hadBackgroundMusic.action === 'pause') {
+            audioMixer.resumeMusic();
+            radioMonitor.log('DIRECTOR', 'Resumed music after talk', 'trace');
+        }
     }
 }
 

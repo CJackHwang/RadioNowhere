@@ -194,7 +194,7 @@ export async function executeMusicBlock(
             radioMonitor.log('DIRECTOR', `Playing cached music (Blob): ${block.search}`, 'info');
 
             const result = await audioMixer.playMusic(blobUrl, {
-                fadeIn: block.fadeIn,
+                fadeIn: block.fadeIn ?? AUDIO.MUSIC_DEFAULT_FADE_IN,
                 format: 'mp3',
                 html5: true
             });
@@ -243,7 +243,7 @@ export async function executeMusicBlock(
         radioMonitor.log('DIRECTOR', `Playing music (live): ${track.name}`, 'info');
 
         const playResult = await audioMixer.playMusic(url, {
-            fadeIn: block.fadeIn ?? 2000
+            fadeIn: block.fadeIn ?? AUDIO.MUSIC_DEFAULT_FADE_IN
         });
 
         if (!playResult.success) {
@@ -280,8 +280,7 @@ export async function executeMusicControlBlock(
             audioMixer.resumeMusic();
             break;
         case 'fade_out':
-            audioMixer.fadeMusic(0, block.fadeDuration || 2000);
-            await delay(300);
+            await audioMixer.fadeMusic(0, block.fadeDuration || 2000);
             break;
         case 'fade_in':
             await audioMixer.fadeMusic(block.targetVolume || 0.7, block.fadeDuration || 2000);

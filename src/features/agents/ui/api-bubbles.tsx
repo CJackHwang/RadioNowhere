@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Cpu, Music, Mic2, Radio, Zap, Check, X, Loader2 } from 'lucide-react';
-import { radioMonitor, ApiCallEvent } from '@/lib/radio_monitor';
+import { radioMonitor, ApiCallEvent } from '@shared/services/monitor-service';
 
 interface ApiBubble extends ApiCallEvent {
     visible: boolean;

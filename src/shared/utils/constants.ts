@@ -34,12 +34,13 @@ export const TRANSITION = {
 
 export const AUDIO = {
     // 音量
-    MUSIC_DEFAULT_VOLUME: 0.9,        // 音乐默认音量
+    MUSIC_DEFAULT_VOLUME: 1.0,        // 音乐默认音量（与TTS一致，实现平衡）
     VOICE_DEFAULT_VOLUME: 1.0,        // 语音默认音量
     MASTER_DEFAULT_VOLUME: 0.85,      // 主音量
     MUSIC_DURING_VOICE: 0.15,         // 语音播放时音乐音量
     MUSIC_FADE_LOW: 0.1,              // 音乐最低淡入淡出音量
-    MUSIC_AFTER_TRANSITION: 0.8,      // 过渡后恢复音量
+    MUSIC_AFTER_TRANSITION: 0.9,      // 过渡后恢复音量
+    MUSIC_DEFAULT_FADE_IN: 2000,      // 音乐默认渐入时长 (ms)
 
     // 淡入淡出时长 (ms)
     FADE_DURATION_QUICK: 500,         // 快速淡入淡出

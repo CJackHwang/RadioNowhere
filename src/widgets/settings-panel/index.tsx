@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Save, Zap, CheckCircle, AlertCircle, Loader2, RefreshCw, ChevronDown } from "lucide-react";
-import { getSettings, saveSettings, IApiSettings, ApiType, TTSProvider } from "@/lib/settings_store";
-import { testConnection, fetchModels } from "@/lib/ai_service";
+import { getSettings, saveSettings, IApiSettings, ApiType, TTSProvider } from "@shared/services/storage-service/settings";
+import { testConnection, fetchModels } from "@shared/services/ai-service";
 
 interface SettingsPanelProps {
     isOpen: boolean;

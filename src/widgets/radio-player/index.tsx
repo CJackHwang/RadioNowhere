@@ -216,25 +216,37 @@ export default function RadioPlayer() {
 
     // ================== Controls ==================
 
-    // Connect: 启动 Agent 生成（后台开始生成节目）
-    const connect = useCallback(async () => {
-        setIsInitializing(true);
-        setIsConnected(true);
-        setIsPlaying(true);  // 连接后自动开始播放
-        setCurrentScript(null);
-
-        try {
-            await directorAgent.startShow({});
-            setIsInitializing(false);
-        } catch (error) {
-            console.error("Failed to connect:", error);
-            setIsConnected(false);
+    // 统一播放控制：只有两个状态 - 播放中 / 未播放
+    const togglePlayback = useCallback(async () => {
+        if (isPlaying) {
+            // 正在播放 → 暂停
+            directorAgent.pauseShow();
             setIsPlaying(false);
-            setIsInitializing(false);
+        } else {
+            // 未播放 → 开始/继续
+            if (!isConnected) {
+                // 首次启动
+                setIsInitializing(true);
+                setIsConnected(true);
+                setIsPlaying(true);
+                setCurrentScript(null);
+                try {
+                    await directorAgent.startShow({});
+                } catch (error) {
+                    console.error("Failed to start:", error);
+                    setIsConnected(false);
+                    setIsPlaying(false);
+                }
+                setIsInitializing(false);
+            } else {
+                // 已连接，恢复播放
+                directorAgent.resumeShow();
+                setIsPlaying(true);
+            }
         }
-    }, []);
+    }, [isPlaying, isConnected]);
 
-    // Disconnect: 停止所有 Agent 生成和播放
+    // Disconnect: 完全停止
     const disconnect = useCallback(() => {
         setIsConnected(false);
         setIsPlaying(false);
@@ -244,26 +256,6 @@ export default function RadioPlayer() {
         setCurrentBlockId(null);
         setAgentStatuses({});
     }, []);
-
-    // toggleConnection: 切换连接状态
-    const toggleConnection = useCallback(() => {
-        if (isConnected) {
-            disconnect();
-        } else {
-            connect();
-        }
-    }, [isConnected, connect, disconnect]);
-
-    // togglePlay: 暂停/继续播放（Agent 继续后台准备）
-    const togglePlay = useCallback(() => {
-        if (isPaused) {
-            directorAgent.resumeShow();
-            setIsPaused(false);
-        } else {
-            directorAgent.pauseShow();
-            setIsPaused(true);
-        }
-    }, [isPaused]);
 
 
 
@@ -404,22 +396,23 @@ export default function RadioPlayer() {
             {/* 4. Controls Footer */}
             <div className="bg-[#0f0f0f] border-t border-white/5 p-6 backdrop-blur-3xl shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
                 <div className="flex items-center gap-4">
-                    {/* Main Connect Toggle */}
+                    {/* Unified Play/Pause Button - 只有两个状态 */}
                     <motion.button
                         whileTap={{ scale: 0.95 }}
-                        onClick={toggleConnection}
-                        className={`group relative overflow-hidden px-8 py-3.5 rounded-2xl flex items-center gap-3 transition-all duration-500 ${isConnected
-                            ? 'bg-black border border-red-900/40 text-red-500 shadow-[0_0_20px_rgba(153,27,27,0.1)]'
-                            : 'bg-emerald-500 text-black font-black uppercase tracking-wider'
+                        onClick={togglePlayback}
+                        className={`group relative overflow-hidden px-8 py-3.5 rounded-2xl flex items-center gap-3 transition-all duration-500 ${isPlaying
+                            ? 'bg-emerald-500 text-black font-black'
+                            : 'bg-neutral-900 border border-emerald-500/40 text-emerald-400'
                             }`}
                     >
                         {isInitializing ? <Loader2 className="animate-spin" size={18} /> :
-                            isConnected ? <Pause className="fill-current" size={18} /> : <Play className="fill-current" size={18} />}
-                        <span className="font-bold text-sm">{isConnected ? 'Disconnect' : 'Connect Now'}</span>
+                            isPlaying ? <Pause className="fill-current" size={18} /> : <Play className="fill-current" size={18} />}
+                        <span className="font-bold text-sm">
+                            {isPlaying ? 'Pause' : 'Connect'}
+                        </span>
                     </motion.button>
 
                     <div className="flex-1 flex items-center justify-around">
-                        <PlayerActionBtn onClick={togglePlay} active={isPaused} icon={isPaused ? <Play size={20} /> : <Pause size={20} />} label="Flow" disabled={!isConnected} />
                         <PlayerActionBtn onClick={() => setShowTimeline(!showTimeline)} active={showTimeline} icon={<Layers size={20} />} label="List" />
                         <div className="relative">
                             <PlayerActionBtn onClick={() => setShowMailbox(true)} icon={<MessageCircle size={20} />} label="Mail" />
@@ -433,6 +426,10 @@ export default function RadioPlayer() {
                             setIsMuted(!isMuted);
                             audioMixer.setMasterVolume(!isMuted ? 0 : 0.8);
                         }} active={isMuted} icon={isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />} label="Audio" />
+                        {/* Stop Button - only visible when connected */}
+                        {isConnected && (
+                            <PlayerActionBtn onClick={disconnect} icon={<Radio size={20} />} label="Stop" />
+                        )}
                     </div>
                 </div>
 

@@ -42,7 +42,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-100"
+                        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100]"
                     />
 
                     {/* Panel */}
@@ -51,7 +51,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 50, scale: 0.95 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-md mx-auto bg-neutral-900 border border-neutral-700 rounded-2xl z-101 overflow-hidden shadow-2xl max-h-[85vh] overflow-y-auto"
+                        className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-md mx-auto bg-neutral-900 border border-neutral-700 rounded-2xl z-[110] overflow-hidden shadow-2xl max-h-[85vh] overflow-y-auto"
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 sticky top-0 bg-neutral-900 z-20">

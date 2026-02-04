@@ -21,6 +21,11 @@ export default function TTSSettings({
     onSettingChange,
     onTtsTest,
 }: TTSSettingsProps) {
+    const isGeminiTts = settings.ttsProvider === 'gemini';
+    const useVertex = isGeminiTts && settings.ttsUseVertex && settings.apiType === 'vertexai';
+    const hasDirectKey = Boolean(settings.ttsApiKey || settings.apiKey);
+    const hasVertexConfig = Boolean(settings.apiKey && settings.gcpProject && settings.gcpLocation);
+    const isTtsTestDisabled = ttsTestStatus === "testing" || (isGeminiTts && (useVertex ? !hasVertexConfig : !hasDirectKey));
     return (
         <div className="border-t border-neutral-800 pt-4">
             <h3 className="text-sm font-semibold text-neutral-300 mb-3">🎤 TTS Settings</h3>
@@ -143,7 +148,7 @@ export default function TTSSettings({
             {/* TTS Test Button */}
             <button
                 onClick={onTtsTest}
-                disabled={(settings.ttsProvider === 'gemini' && !settings.apiKey) || ttsTestStatus === "testing"}
+                disabled={isTtsTestDisabled}
                 className="w-full mt-4 flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-colors text-sm"
             >
                 {ttsTestStatus === "testing" ? (
